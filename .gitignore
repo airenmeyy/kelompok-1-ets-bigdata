@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment (jika ada)
+venv/
+env/
+
+# Data Backup & Log
+kafka/logs/
+dashboard/data/*.json
