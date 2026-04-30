@@ -60,10 +60,7 @@ def create_producer() -> KafkaProducer:
  
 # ── Helper: fetch dari USGS ───────────────────────────────────────────────
 def fetch_usgs_earthquakes() -> list[dict]:
-    """
-    [NamaAnggota2]: Ambil data gempa terbaru dari USGS FDSN API.
-    Response berupa GeoJSON — kita parse tiap feature menjadi dict flat.
-    """
+ 
     try:
         response = requests.get(USGS_API_URL, timeout=15)
         response.raise_for_status()
@@ -126,7 +123,7 @@ def fetch_usgs_earthquakes() -> list[dict]:
  
  
 def classify_magnitude(mag) -> str:
-    """[NamaAnggota2]: Kategorisasi magnitudo sesuai analisis Spark wajib."""
+   
     if mag is None:
         return "unknown"
     if mag < 3.0:
@@ -140,7 +137,7 @@ def classify_magnitude(mag) -> str:
  
  
 def classify_depth(depth_km) -> str:
-    """[NamaAnggota2]: Kategorisasi kedalaman gempa."""
+  
     if depth_km is None:
         return "unknown"
     if depth_km < 70:
@@ -153,10 +150,7 @@ def classify_depth(depth_km) -> str:
  
 # ── Helper: deduplikasi antar polling cycle ───────────────────────────────
 class SeenEventTracker:
-    """
-    [NamaAnggota2]: Simpan ID event yang sudah dikirim dalam window 1 jam
-    untuk menghindari pengiriman ulang event yang sama.
-    """
+
     def __init__(self, ttl_seconds: int = 3600):
         self._seen: dict[str, float] = {}   # id -> timestamp saat dilihat
         self._ttl = ttl_seconds
