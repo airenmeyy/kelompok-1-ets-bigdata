@@ -10,12 +10,10 @@ import requests
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
  
-# ── Konfigurasi ───────────────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
 TOPIC_NAME = "gempa-rss"
-POLLING_INTERVAL_SECONDS = 300      # 5 menit (sesuai instruksi ETS)
+POLLING_INTERVAL_SECONDS = 300      
  
-# RSS Feed sources (primary + fallback)
 RSS_FEEDS = [
     {
         "name": "Google News (Gempa Indonesia)",
@@ -24,7 +22,6 @@ RSS_FEEDS = [
     }
 ]
  
-# ── Logging ───────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -32,8 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("producer_rss")
  
- 
-# ── Helper: hash URL sebagai key ──────────────────────────────────────────
+
 def make_key(url: str) -> str:
     """
     [NamaAnggota3]: Key = hash 8 karakter dari URL artikel.
@@ -44,11 +40,7 @@ def make_key(url: str) -> str:
  
 # ── Helper: parse waktu publikasi RSS ────────────────────────────────────
 def parse_published_time(entry) -> str:
-    """
-    [NamaAnggota3]: Coba berbagai cara parse waktu dari entry RSS.
-    Feedparser menyediakan field published_parsed (struct_time).
-    """
-    # Cara 1: pakai published_parsed dari feedparser
+   
     if hasattr(entry, "published_parsed") and entry.published_parsed:
         try:
             dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
@@ -106,7 +98,7 @@ def fetch_rss_entries(feed_config: dict) -> list[dict]:
  
 # ── Helper: inisialisasi Kafka Producer ──────────────────────────────────
 def create_producer() -> KafkaProducer:
-    """[NamaAnggota3]: Buat Kafka Producer dengan konfigurasi idempoten."""
+ 
     return KafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         key_serializer=lambda k: k.encode("utf-8"),
@@ -122,11 +114,7 @@ def create_producer() -> KafkaProducer:
  
 # ── Tracker deduplikasi ───────────────────────────────────────────────────
 class SeenArticleTracker:
-    """
-    [NamaAnggota3]: Simpan hash URL artikel yang sudah dikirim.
-    TTL 24 jam agar tidak memakai RAM berlebihan di run panjang.
-    Instruksi ETS: 'hindari duplikat dengan menyimpan ID yang sudah dikirim'
-    """
+
     def __init__(self, ttl_seconds: int = 86400):
         self._seen: dict[str, float] = {}
         self._ttl = ttl_seconds
