@@ -11,7 +11,7 @@ from kafka.errors import KafkaError
 # ── Konfigurasi ───────────────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
 TOPIC_NAME = "gempa-api"
-POLLING_INTERVAL_SECONDS = 300      # 5 menit
+POLLING_INTERVAL_SECONDS = 30      # 30 detik (untuk demo)
  
 # USGS FDSN API — bounding box seluruh wilayah Indonesia
 USGS_API_URL = (

@@ -12,7 +12,7 @@ from kafka.errors import KafkaError
  
 KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
 TOPIC_NAME = "gempa-rss"
-POLLING_INTERVAL_SECONDS = 300      
+POLLING_INTERVAL_SECONDS = 30      # 30 detik (untuk demo)
  
 RSS_FEEDS = [
     {
