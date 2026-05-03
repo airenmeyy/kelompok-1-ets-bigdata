@@ -103,7 +103,6 @@ def create_producer() -> KafkaProducer:
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         key_serializer=lambda k: k.encode("utf-8"),
         value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
-        enable_idempotence=True,
         acks="all",
         retries=5,
         retry_backoff_ms=500,

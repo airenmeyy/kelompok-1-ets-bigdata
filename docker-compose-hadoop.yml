@@ -12,6 +12,8 @@ services:
     env_file:
       - ./hadoop.env
     command: ["hdfs", "namenode"]
+    networks:
+      - bigdata-net
 
   datanode:
     image: apache/hadoop:3
@@ -26,6 +28,8 @@ services:
     env_file:
       - ./hadoop.env
     command: ["hdfs", "datanode"]
+    networks:
+      - bigdata-net
 
   resourcemanager:
     image: apache/hadoop:3
@@ -40,6 +44,8 @@ services:
     env_file:
       - ./hadoop.env
     command: ["yarn", "resourcemanager"]
+    networks:
+      - bigdata-net
 
   nodemanager:
     image: apache/hadoop:3
@@ -54,3 +60,10 @@ services:
     env_file:
       - ./hadoop.env
     command: ["yarn", "nodemanager"]
+    networks:
+      - bigdata-net
+
+networks:
+  bigdata-net:
+    name: bigdata-net
+    driver: bridge

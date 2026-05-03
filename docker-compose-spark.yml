@@ -1,0 +1,34 @@
+services:
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark-master
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+    ports:
+      - "8888:8080"
+      - "7077:7077"
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
+    extra_hosts:
+      - "spark-master:127.0.0.1"
+    volumes:
+      - .:/app
+    working_dir: /app
+    networks:
+      - bigdata-net
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    volumes:
+      - .:/app
+    working_dir: /app
+    networks:
+      - bigdata-net
+
+networks:
+  bigdata-net:
+    name: bigdata-net
+    driver: bridge

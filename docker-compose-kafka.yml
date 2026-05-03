@@ -19,3 +19,10 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_LOG_RETENTION_HOURS: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    networks:
+      - bigdata-net
+
+networks:
+  bigdata-net:
+    name: bigdata-net
+    driver: bridge

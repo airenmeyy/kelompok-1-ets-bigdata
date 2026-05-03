@@ -46,8 +46,6 @@ def create_producer() -> KafkaProducer:
         # Serialisasi key dan value sebagai UTF-8 bytes
         key_serializer=lambda k: k.encode("utf-8"),
         value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
-        # Jaminan: tidak ada data hilang
-        enable_idempotence=True,
         acks="all",
         retries=5,
         retry_backoff_ms=500,

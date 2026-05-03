@@ -1,0 +1,6 @@
+kafka-python-ng==2.2.2
+requests==2.31.0
+feedparser==6.0.10
+hdfs==2.7.3
+pyspark==3.5.0
+delta-spark==3.1.0

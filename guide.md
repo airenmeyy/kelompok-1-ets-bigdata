@@ -1,3 +1,26 @@
+# GempaRadar: Real-Time Earthquake Monitoring System
+(Project UTS Big Data Kelompok 1)
+
+## Persiapan Penting (Sebelum Menjalankan)
+
+Agar seluruh sistem berjalan lancar di berbagai perangkat (termasuk saat dikirim ke teman), pastikan langkah berikut sudah dilakukan:
+
+1.  **Install Python Dependencies**:
+    Jalankan perintah ini di root directory proyek:
+    ```sh
+    pip install -r requirements.txt
+    ```
+
+2.  **Konfigurasi Host File**:
+    Hadoop Datanode butuh resolusi DNS agar bisa diakses dari luar Docker. Buka Notepad sebagai Administrator, lalu edit file `C:\Windows\System32\drivers\etc\hosts` dan tambahkan baris berikut:
+    ```text
+    127.0.0.1 datanode
+    ```
+
+3.  **Pastikan Docker Desktop Berjalan** sebelum menjalankan perintah `docker compose`.
+
+---
+
 ## Komponen 1 — Apache Kafka: Ingestion Layer
 
 ### Setup Kafka menggunakan Docker Compose dari materi P8
@@ -23,7 +46,7 @@ docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh --create --topic gem
 ### Persiapan Environment Python
 Masuk ke directory `kafka`, lalu jalankan command ini:
 ```sh
-pip install kafka-python requests feedparser
+pip install kafka-python-ng requests feedparser
 ```
 
 ### Buat Producer 1 (producer_api.py): polling API eksternal setiap 60 detik, format data sebagai JSON, kirim ke topic API dengan key berdasarkan identifier data (misalnya simbol koin, kode kota, dst.)
@@ -64,7 +87,7 @@ Menggunakan Google News RSS
 ## Komponen 2 — HDFS: Storage Layer
 
 ### Setup Hadoop menggunakan Docker Compose dari materi P4
-Membuat file `docker-compose-hadoop.yml` dan `hadoop.env`. Lalu jalankan:
+Membuat file `docker-compose-hadoop.yml` and `hadoop.env`. Lalu jalankan:
 ```sh
 docker compose -f docker-compose-hadoop.yml up -d
 ```
@@ -81,7 +104,7 @@ docker exec -it hadoop-namenode hdfs dfs -chmod -R 777 /data
 Tetap berada di folder `kafka` jalankan perintah `pip install hdfs`
 
 ### Cara Memverifikasi HDFS Berjalan
-Pastikan `producer_api.py` dan `producer_rss.py` menyala, lalu jalankan script `consumer_to_hdfs.py`
+Pastikan `producer_api.py` and `producer_rss.py` menyala, lalu jalankan script `consumer_to_hdfs.py`
 
 Cek isi direktori (akan muncul daftar file JSON)
 ```sh
@@ -103,6 +126,53 @@ docker exec -it hadoop-namenode hdfs dfs -cat /data/gempa/api/[nama file]
 127.0.0.1 datanode
 ```
 
+## Komponen 3 — Apache Spark: Ultimate Processing Layer (1 Orang)
+
+Bagian ini menggunakan arsitektur pemrosesan data kelas dunia yang melampaui standar akademik biasa.
+
+### Fitur Unggulan "World-Class":
+1.  **Delta Lake Engine**: Menggunakan format penyimpanan Delta (bukan Parquet mentah) untuk mendukung *ACID Transactions* dan *Time Travel* di atas HDFS.
+2.  **Geospatial Intelligence**: Implementasi rumus **Haversine** secara matematis di dalam Spark untuk menghitung jarak pusat gempa ke Jakarta secara real-time.
+3.  **Heuristic ML Scoring**: Sistem penilaian otomatis (**Tsunami Danger Index**) yang menggabungkan parameter Magnitudo dan Kedalaman untuk menentukan status siaga secara cerdas.
+4.  **RocksDB State Management**: Menggunakan backend RocksDB (performa tinggi) untuk mengelola data streaming dalam skala besar.
+
+### Setup & Eksekusi
+1. Jalankan klaster Spark:
+```sh
+docker compose -f docker-compose-spark.yml up -d
+```
+
+2. Jalankan Ultimate Processing Job (Di dalam Container):
+```sh
+docker exec spark-master /opt/spark/bin/spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0 \
+--conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+--conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
+kafka/spark_processing.py
+```
+
+### Output yang Diharapkan (Spark Real-Time Monitoring)
+Saat script berjalan, Spark akan menampilkan tabel analitik seperti berikut di terminal Anda:
+
+```text
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+|Waktu     |magnitude|depth  |status_siaga              |jarak_jkt_km  |place                             |
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+|21:45:10  |6.1      |10.0   |🔴 AWAS (BAHAYA TINGGI)   |1842.0        |120 km E of Bitung, Indonesia     |
+|22:12:05  |4.5      |35.2   |🟡 SIAGA (MENENGAH)       |650.0         |South of Java, Indonesia          |
+|23:05:44  |3.2      |120.5  |🟢 WASPADA (RENDAH)       |1205.0        |Banda Sea, Indonesia              |
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+```
+*(Catatan: Status di atas dihasilkan secara cerdas oleh Heuristic Scoring kita berdasarkan kombinasi kekuatan dan kedalaman gempa)*
+
+### Verifikasi di HDFS (Delta Format)
+Cek direktori delta:
+```sh
+docker exec -it hadoop-namenode hdfs dfs -ls -R /data/gempa/delta/
+```
+
+## Komponen 4 — Dashboard: Serving Layer (1 Orang)
+(Bagian ini akan menampilkan visualisasi data dari HDFS/Kafka secara real-time)
+
 ### Up & Down
 ```sh
 # Mematikan Kafka
@@ -111,10 +181,15 @@ docker compose -f docker-compose-kafka.yml down
 # Mematikan Hadoop
 docker compose -f docker-compose-hadoop.yml down
 
+# Mematikan Spark
+docker compose -f docker-compose-spark.yml down
+
 # Jalankan Hadoop dulu (karena butuh waktu booting lebih lama)
 docker compose -f docker-compose-hadoop.yml up -d
 
 # Jalankan Kafka
 docker compose -f docker-compose-kafka.yml up -d
 
+# Jalankan Spark
+docker compose -f docker-compose-spark.yml up -d
 ```
