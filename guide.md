@@ -173,6 +173,18 @@ Terminal akan menampilkan laporan otomatis untuk BPBD:
 > Prediksi Tren: Magnitudo cenderung naik seiring waktu.
 ```
 
+**D. Real-Time Alert Monitoring (Streaming)**
+Berikut adalah tampilan konsol saat gempa baru masuk secara real-time:
+```text
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+|Waktu     |magnitude|depth  |status_siaga              |jarak_jkt_km  |place                             |
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+|21:45:10  |6.1      |10.0   |🔴 AWAS (BAHAYA TINGGI)   |1842.0        |120 km E of Bitung, Indonesia     |
+|22:12:05  |4.5      |35.2   |🟡 SIAGA (MENENGAH)       |650.0         |South of Java, Indonesia          |
+|23:05:44  |3.2      |120.5  |🟢 WASPADA (RENDAH)       |1205.0        |Banda Sea, Indonesia              |
++----------+---------+-------+--------------------------+--------------+----------------------------------+
+```
+
 ### Verifikasi Hasil di HDFS
 Sesuai rubrik, hasil ringkasan statistik disimpan ke JSON dan Delta:
 - **JSON Summary**: `docker exec hadoop-namenode hdfs dfs -cat /data/gempa/hasil/spark_results.json`
