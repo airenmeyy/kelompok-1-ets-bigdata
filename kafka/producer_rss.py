@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import time
 import logging
@@ -10,18 +11,43 @@ import requests
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
  
-KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
+import os
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092").split(",")
 TOPIC_NAME = "gempa-rss"
 POLLING_INTERVAL_SECONDS = 30      # 30 detik (untuk demo)
  
 RSS_FEEDS = [
     {
-        "name": "Google News (Gempa Indonesia)",
+        "name": "Google News",
         "url": "https://news.google.com/rss/search?q=gempa+indonesia&hl=id&gl=ID&ceid=ID:id",
         "priority": 1,
+    },
+    {
+        "name": "Detik.com",
+        "url": "https://www.detik.com/search/search_all?query=gempa&sortby=time&rss=true",
+        "priority": 2,
+    },
+    {
+        "name": "Kompas.com",
+        "url": "https://www.kompas.com/tag/gempa?format=rss",
+        "priority": 2,
+    },
+    {
+        "name": "Tempo.co",
+        "url": "https://www.tempo.co/tag/gempa?format=rss",
+        "priority": 2,
+    },
+    {
+        "name": "Liputan6",
+        "url": "https://www.liputan6.com/tag/gempa.rss",
+        "priority": 2,
     }
 ]
  
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -74,23 +100,24 @@ def clean_summary(text: str, max_len: int = 500) -> str:
 # ── Helper: fetch & parse single RSS feed ────────────────────────────────
 def fetch_rss_entries(feed_config: dict) -> list[dict]:
     """
-    [NamaAnggota3]: Parse RSS feed menggunakan feedparser.
-    Field yang diambil: title, link, summary, published.
+    [NamaAnggota3]: Parse RSS feed menggunakan requests + feedparser.
     """
     url = feed_config["url"]
     source_name = feed_config["name"]
- 
+
     try:
-        # feedparser.parse() langsung bisa handle URL
-        feed = feedparser.parse(url)
- 
+        # Gunakan requests + headers agar tidak diblokir
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        
+        feed = feedparser.parse(response.content)
         if feed.bozo and feed.bozo_exception:
             log.warning("RSS %s: parsing warning — %s", source_name, feed.bozo_exception)
- 
+
         entries = feed.entries
         log.info("RSS %s: %d artikel ditemukan", source_name, len(entries))
         return entries
- 
+
     except Exception as e:
         log.error("Gagal fetch RSS %s (%s): %s", source_name, url, e)
         return []

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import time
 import os
@@ -6,10 +7,11 @@ from kafka import KafkaConsumer, TopicPartition
 from hdfs import InsecureClient
 
 # --- Setup HDFS Client ---
-hdfs_client = InsecureClient('http://localhost:9870', user='hadoop')
+HDFS_URL = os.getenv('HDFS_URL', 'http://localhost:9870')
+hdfs_client = InsecureClient(HDFS_URL, user='hadoop')
 
 # Siapkan folder lokal untuk Dashboard
-DASHBOARD_DIR = '../dashboard/data'
+DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'dashboard', 'data')
 os.makedirs(DASHBOARD_DIR, exist_ok=True)
 
 FLUSH_INTERVAL_SECONDS = 120  # flush ke HDFS setiap 2 menit
@@ -41,8 +43,9 @@ if __name__ == "__main__":
     # Ini menghindari bug kafka-python-ng pada Python 3.13 Windows
     # (Invalid file descriptor: -1 di selectors saat ensure_active_group)
     # group_id tetap diset agar consumer group terdaftar di broker (untuk --describe LAG)
+    KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092').split(',')
     consumer = KafkaConsumer(
-        bootstrap_servers=['localhost:9092'],
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         group_id='gempa-consumer-group',
         auto_offset_reset='earliest',
         enable_auto_commit=False,          # manual commit setelah setiap flush

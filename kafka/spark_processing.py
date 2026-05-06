@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from datetime import datetime, timezone
 
@@ -13,15 +13,18 @@ from pyspark.ml.regression import LinearRegression as SparkLR
 # â”€â”€ 1. SparkSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 spark = SparkSession.builder \
     .appName("GempaRadar-Analysis") \
-    .master("spark://spark-master:7077") \
-    .config("spark.hadoop.fs.defaultFS", "hdfs://hadoop-namenode:8020") \
+    .master("spark://localhost:7077") \
+    .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:8020") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
     .getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
 
-HDFS_API  = "hdfs://hadoop-namenode:8020/data/gempa/api/"
-HDFS_RSS  = "hdfs://hadoop-namenode:8020/data/gempa/rss/"
-HDFS_HASIL = "hdfs://hadoop-namenode:8020/data/gempa/hasil/"
+HDFS_API  = "hdfs://localhost:8020/data/gempa/api/"
+HDFS_RSS  = "hdfs://localhost:8020/data/gempa/rss/"
+HDFS_HASIL = "hdfs://localhost:8020/data/gempa/hasil/"
 
 print("\n" + "="*60)
 print("  GempaRadar Analytics â€” Batch Analysis from HDFS")

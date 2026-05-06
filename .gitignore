@@ -1,11 +1,14 @@
-# Python
+*.log
 __pycache__/
-*.pyc
-
-# Virtual Environment (jika ada)
+.venv/
 venv/
-env/
-
-# Data Backup & Log
-kafka/logs/
-dashboard/data/*.json
+.env
+data/*.json
+!data/example.json
+.DS_Store
+.vscode/
+.idea/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
