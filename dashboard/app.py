@@ -276,6 +276,10 @@ def api_data():
     # Selalu hitung ulang dari live data agar statistik selalu fresh
     live_stats = compute_stats_from_api(api_data_raw)
     if live_stats:
+        # Preserve mllib results from spark_results.json (only available after Spark batch run)
+        if spark_results and spark_results.get("mllib"):
+            live_stats["mllib"] = spark_results["mllib"]
+            live_stats["spark_last_updated"] = spark_results.get("last_updated")
         spark_results = live_stats
         spark_results["note"] = "Data dihitung dari live USGS feed (auto-refresh setiap 5 menit)"
     elif not spark_results or spark_results.get("total_gempa", 0) == 0:

@@ -176,19 +176,37 @@ Buka browser: **http://localhost:5000**
 
 ## 📸 Screenshot
 
-### Dashboard UI (localhost:5000)
+### Dashboard — Globe + Statistik (localhost:5000)
 
-![Dashboard UI](image/UI_Dashboard.png)
+![Dashboard](image/Dashboard.png)
 
-### HDFS Web UI (localhost:9870)
+### Peta 2D — Dark View
 
-![HDFS Web UI](image/hdfs_webui.png)
+![Peta 2D Gelap](image/Peta_2D_Gelap_View.png)
 
-### Kafka Consumer Output
+### Peta 2D — Street View
 
-![Kafka Consumer](image/kafka_consumer.png)
+![Peta 2D Street](image/Peta_2D_Street_View.png)
 
-> **Catatan:** Ambil screenshot dari `localhost:9870` saat Hadoop berjalan dan dari output terminal consumer, lalu simpan sebagai `image/hdfs_webui.png` dan `image/kafka_consumer.png`.
+### Peta 3D (Mapbox)
+
+![Peta 3D](image/Peta_3D.png)
+
+### Berita Gempa
+
+![Berita](image/Berita.png)
+
+### HDFS Web UI — Overview (localhost:9870)
+
+![HDFS Overview](image/overview_hdfs.png)
+
+### HDFS Web UI — Browse Directory `/`
+
+![HDFS Browse Root](image/browse_directory_hdfs.png)
+
+### HDFS Web UI — Browse Directory `/data/gempa`
+
+![HDFS Browse Data](image/browse_directory_hdfs_data.png)
 
 ---
 

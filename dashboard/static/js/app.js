@@ -815,6 +815,20 @@ function updateSummary(s) {
   }
 }
 
+function updateMllib(mllib) {
+  if (!mllib) return;
+  const setEl = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const trenEl = document.getElementById('ml-tren');
+  if (trenEl) {
+    const tren = mllib.tren || '—';
+    trenEl.textContent = tren === 'naik' ? '↑ Naik' : tren === 'turun' ? '↓ Turun' : tren;
+    trenEl.style.color = tren === 'naik' ? '#f97316' : tren === 'turun' ? '#22c55e' : '#a1a1aa';
+  }
+  setEl('ml-koef', mllib.koefisien_per_jam != null ? mllib.koefisien_per_jam.toFixed(6) : '—');
+  setEl('ml-rmse', mllib.rmse != null ? mllib.rmse.toFixed(4) : '—');
+  setEl('ml-r2', mllib.r2 != null ? mllib.r2.toFixed(4) : '—');
+}
+
 function updateMagDist(dist) {
   if (!dist) return;
   const setEl = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
@@ -852,6 +866,7 @@ async function fetchAndRender() {
     try { if (spark.distribusi_magnitudo) { renderMagChart(spark.distribusi_magnitudo); updateMagDist(spark.distribusi_magnitudo); } } catch(e) { console.warn('renderMagChart error:', e); }
     try { if (spark.distribusi_kedalaman) { renderDepthDoughnut(spark.distribusi_kedalaman); } } catch(e) { console.warn('renderDepthDoughnut error:', e); }
     try { if (spark.top_wilayah) renderWilayah(spark.top_wilayah); } catch(e) { console.warn('renderWilayah error:', e); }
+    try { if (spark.mllib) updateMllib(spark.mllib); } catch(e) { console.warn('updateMllib error:', e); }
 
     // Render Mapbox maps (non-critical — don't break connectivity status)
     try { if (mapGlobe) renderMapboxMarkers(mapGlobe, allGempa, 'globe-count'); } catch(e) { console.warn('Globe render error:', e); }

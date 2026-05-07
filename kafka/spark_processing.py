@@ -127,9 +127,9 @@ stats_row = spark.sql("""
 
 # 3. SIMPAN HASIL KE HDFS
 # ══════════════════════════════════════════════════════════════
-# BONUS +5 — Spark MLlib: Linear Regression Tren Magnitudo
+# Spark MLlib: Linear Regression Tren Magnitudo
 # ══════════════════════════════════════════════════════════════
-print("\n[BONUS] Spark MLlib — Prediksi Tren Magnitudo (Linear Regression)")
+print("\n Spark MLlib — Prediksi Tren Magnitudo (Linear Regression)")
 mllib_results = {}
 try:
     min_row = spark.sql("SELECT MIN(event_time_epoch) AS min_t FROM gempa").collect()[0]
