@@ -3,8 +3,17 @@ import json
 import time
 import logging
 import hashlib
+import socket
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+
+# Fix: redirect kafka-broker → localhost agar bisa diakses dari Windows host
+_orig_getaddrinfo = socket.getaddrinfo
+def _patched_getaddrinfo(host, port, *args, **kwargs):
+    if host == 'kafka-broker':
+        host = '127.0.0.1'
+    return _orig_getaddrinfo(host, port, *args, **kwargs)
+socket.getaddrinfo = _patched_getaddrinfo
  
 import feedparser
 import requests
@@ -22,26 +31,6 @@ RSS_FEEDS = [
         "url": "https://news.google.com/rss/search?q=gempa+indonesia&hl=id&gl=ID&ceid=ID:id",
         "priority": 1,
     },
-    {
-        "name": "Detik.com",
-        "url": "https://www.detik.com/search/search_all?query=gempa&sortby=time&rss=true",
-        "priority": 2,
-    },
-    {
-        "name": "Kompas.com",
-        "url": "https://www.kompas.com/tag/gempa?format=rss",
-        "priority": 2,
-    },
-    {
-        "name": "Tempo.co",
-        "url": "https://www.tempo.co/tag/gempa?format=rss",
-        "priority": 2,
-    },
-    {
-        "name": "Liputan6",
-        "url": "https://www.liputan6.com/tag/gempa.rss",
-        "priority": 2,
-    }
 ]
  
 HEADERS = {
@@ -134,7 +123,7 @@ def create_producer() -> KafkaProducer:
         retries=5,
         retry_backoff_ms=500,
         compression_type="gzip",
-        request_timeout_ms=30000,
+        request_timeout_ms=60000,
     )
  
  
@@ -254,6 +243,8 @@ def main():
                     "  Feed %-7s: %d dikirim, %d di-skip",
                     feed_config["name"], sent_from_feed, skip_from_feed,
                 )
+                if sent_from_feed > 0:
+                    producer.flush(timeout=30)
  
             producer.flush()
             log.info(

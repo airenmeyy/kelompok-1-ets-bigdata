@@ -1,243 +1,457 @@
-# 🌏 GempaRadar: Real-Time Earthquake Monitoring System
-> **(Project UTS Big Data Kelompok 1)**
+﻿# 🌏 GempaRadar: Real-Time Earthquake Monitoring System
+> **(Project ETS Big Data — Kelompok 1)**
+
+GempaRadar adalah sistem monitoring gempa bumi real-time berbasis Big Data yang memantau seluruh wilayah Indonesia. Sistem ini mengumpulkan data dari USGS FDSN API dan Google News RSS, memprosesnya melalui pipeline Apache Kafka → HDFS → Apache Spark, dan menampilkannya di dashboard interaktif berbasis Flask.
 
 ---
 
 ## 📋 Daftar Isi
-1. [⚙️ Persiapan Penting](#-persiapan-penting)
-2. [🚀 Komponen 1: Ingestion Layer (Kafka)](#-komponen-1-ingestion-layer-kafka)
-3. [📂 Komponen 2: Storage Layer (HDFS)](#-komponen-2-storage-layer-hdfs)
-4. [🧠 Komponen 3: Processing Layer (Spark)](#-komponen-3-processing-layer-spark)
-5. [📊 Komponen 4: Serving Layer (Dashboard)](#-komponen-4-serving-layer-dashboard)
-6. [🛠️ Pemeliharaan (Maintenance)](#-pemeliharaan-maintenance)
+1. [🏗️ Arsitektur Sistem](#-arsitektur-sistem)
+2. [✨ Optimalisasi & Perbaikan](#-optimalisasi--perbaikan)
+3. [⚙️ Persiapan & Setup](#-persiapan--setup)
+4. [🚀 Cara Menjalankan Sistem](#-cara-menjalankan-sistem)
+5. [🔍 Komponen 1: Ingestion Layer (Kafka)](#-komponen-1-ingestion-layer-kafka)
+6. [📂 Komponen 2: Storage Layer (HDFS)](#-komponen-2-storage-layer-hdfs)
+7. [🧠 Komponen 3: Processing Layer (Spark)](#-komponen-3-processing-layer-spark)
+8. [📊 Komponen 4: Serving Layer (Dashboard)](#-komponen-4-serving-layer-dashboard)
+9. [🛠️ Pemeliharaan (Maintenance)](#-pemeliharaan-maintenance)
 
 ---
 
-## ⚙️ Persiapan Penting (Sebelum Menjalankan)
-Agar seluruh sistem berjalan lancar di berbagai perangkat (termasuk saat dikirim ke teman), pastikan langkah berikut sudah dilakukan:
+## 🏗️ Arsitektur Sistem
 
-1.  **Install Python Dependencies**
-    Jalankan perintah ini di root directory proyek:
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-2.  **Konfigurasi Host File**
-    Hadoop Datanode butuh resolusi DNS agar bisa diakses dari luar Docker. Buka **Notepad** sebagai **Administrator**, lalu edit file `C:\Windows\System32\drivers\etc\hosts` dan tambahkan baris berikut:
-    ```text
-    127.0.0.1 datanode
-    ```
-
-3.  **Pastikan Docker Desktop Berjalan** sebelum menjalankan perintah `docker compose`.
-
----
-
-## 🚀 Komponen 1 — Apache Kafka: Ingestion Layer
-
-### 1.1 Setup Kafka menggunakan Docker Compose (P8)
-1. Buat `docker-compose-kafka.yml`, lalu jalankan dengan perintah berikut:
-   ```sh
-   docker compose -f docker-compose-kafka.yml up -d
-   ```
-2. Cek apakah container sudah berjalan:
-   ```sh
-   docker ps
-   ```
-
-### 1.2 Buat 2 Kafka Topic Sesuai Domain
-1. **Topic 1**: Data dari API real-time (nama: `gempa-api`)
-   ```sh
-   docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh --create --topic gempa-api --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-   ```
-2. **Topic 2**: Data dari RSS feed (nama: `gempa-rss`)
-   ```sh
-   docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh --create --topic gempa-rss --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-   ```
-
-### 1.3 Persiapan Environment Python
-Masuk ke directory `kafka`, lalu jalankan command ini:
-```sh
-pip install kafka-python-ng requests feedparser
+```
+USGS FDSN API ──┐
+                ├──► Kafka (gempa-api) ──┐
+Google News RSS ┘                        ├──► HDFS ──► Spark ──► spark_results.json
+                ──► Kafka (gempa-rss) ──┘                              │
+                                                                        ▼
+                                                              Flask Dashboard (Port 5000)
+                                                              + Live USGS refresh (tiap 5 mnt)
 ```
 
-### 1.4 Producer 1 (producer_api.py)
-**Fungsi**: Polling API eksternal setiap 60 detik, format data sebagai JSON, kirim ke topic API dengan key berdasarkan identifier data (misalnya simbol koin, kode kota, dst.)
+**Stack teknologi:**
+- **Apache Kafka** (kafka-python-ng) — message broker, 2 topic: `gempa-api` & `gempa-rss`
+- **Apache Hadoop HDFS** — penyimpanan file JSON terpartisi per waktu
+- **Apache Spark 3.5.0** + **PySpark MLlib** — batch analytics & linear regression
+- **Flask + Leaflet.js** — dashboard web interaktif
 
-Di dalam folder `kafka`, buat sebuah file baru bernama `producer_api.py`. Script ini bertugas mengambil data gempa dari USGS, memformatnya, dan mengirimkannya ke topik `gempa-api`.
+---
 
-### 1.5 Producer 2 (producer_rss.py)
-**Fungsi**: Polling RSS feed setiap 5 menit, parse feed menggunakan library `feedparser`, hindari duplikat dengan menyimpan ID yang sudah dikirim, kirim ke topic RSS.
+## ✨ Optimalisasi & Perbaikan
 
-Di dalam folder `kafka`, buat file kedua bernama `producer_rss.py`. Script ini akan membaca berita BMKG dan memastikan tidak ada berita yang dikirim berulang kali.
+### 1. Fix DNS `kafka-broker` di Windows Host
+Kafka broker mengembalikan metadata dengan hostname internal Docker (`kafka-broker:9092`), yang tidak bisa di-resolve dari Windows. Solusi tanpa mengubah `hosts` file atau restart Docker: **socket monkey-patch** di Python.
 
-### 1.6 Test Komponen 1
-- **Verifikasi Kafka berjalan**:
-  ```sh
-  docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-  ```
-- **Jalankan Producer**:
-  ```sh
-  python producer_api.py
-  python producer_rss.py
-  ```
-- **Cek gempa-api**:
-  ```sh
-  docker exec -it kafka-broker /opt/kafka/bin/kafka-console-consumer.sh --topic gempa-api --from-beginning --bootstrap-server localhost:9092
-  ```
-  **Output yang diharapkan:**
+Patch ini ditambahkan di awal semua script Kafka (`producer_api.py`, `producer_rss.py`, `consumer_to_hdfs.py`):
+
+```python
+import socket
+_orig_getaddrinfo = socket.getaddrinfo
+def _patched_getaddrinfo(host, port, *args, **kwargs):
+    if host == 'kafka-broker':
+        host = '127.0.0.1'
+    return _orig_getaddrinfo(host, port, *args, **kwargs)
+socket.getaddrinfo = _patched_getaddrinfo
+```
+
+### 2. Otomatisasi Spark dengan `spark_runner.py`
+Sebelumnya Spark harus dijalankan manual dengan perintah `docker exec spark-master spark-submit ...` setiap kali ingin memperbarui analisis. Sekarang cukup jalankan `spark_runner.py` sekali — ia akan otomatis menjalankan Spark job setiap **10 menit**.
+
+```python
+# Konfigurasi di spark_runner.py
+INTERVAL_MINUTES = 10   # ubah sesuai kebutuhan
+```
+
+![Spark Auto Runner Terminal](image/spark_runner.png)
+
+### 3. Pembersihan RSS Feed Mati
+Empat sumber RSS (Detik, Kompas, Tempo, Liputan6) mengembalikan error 404 atau XML tidak valid. Keempat sumber dihapus, diganti dengan satu sumber Google News yang stabil:
+```
+https://news.google.com/rss/search?q=gempa+indonesia&hl=id&gl=ID&ceid=ID:id
+```
+
+### 4. Fix Bug: Pin Peta 2D Tab "Berpotensi Tsunami" Tidak Muncul
+Tab "Berpotensi Tsunami" menampilkan 0 titik meskipun ada gempa yang seharusnya termasuk (contoh: M5.7 Gunungsitoli kedalaman 18 km). Penyebabnya: tiga bagian kode (`filterByTab`, `showDetailCard`, `renderSidebar`) menggunakan kondisi tsunami yang **berbeda-beda dan tidak konsisten**.
+
+**Solusi**: membuat satu fungsi terpusat `isTsunami(g)` yang digunakan di semua bagian:
+
+```javascript
+function isTsunami(g) {
+  const m = g.magnitude || 0, d = g.depth_km || 999;
+  // tsunami flag dari USGS, ATAU M>=6 kedalaman<100km, ATAU M>=5.5 kedalaman<50km
+  return g.tsunami == 1 || (m >= 6.0 && d < 100) || (m >= 5.5 && d < 50);
+}
+```
+
+### 5. Penghapusan Konfigurasi Delta Lake
+Delta Lake library (`io.delta`) tidak tersedia di container Spark, menyebabkan `ClassNotFoundException` yang menggagalkan semua job. Konfigurasi Delta dihapus dari `SparkSession` karena tidak dibutuhkan untuk analisis utama.
+
+---
+
+## ⚙️ Persiapan & Setup
+
+### Prasyarat
+- Docker Desktop terinstal dan berjalan
+- Python 3.10+ dengan virtual environment
+- Git (untuk clone repository)
+
+### Langkah 1: Install Python Dependencies
+```sh
+pip install -r requirements.txt
+```
+
+### Langkah 2: Konfigurasi `hosts` File
+Hadoop Datanode membutuhkan resolusi DNS dari luar Docker. Buka **Notepad** sebagai **Administrator**, edit `C:\Windows\System32\drivers\etc\hosts`, tambahkan:
+```
+127.0.0.1 datanode
+```
+
+### Langkah 3: Jalankan Docker Containers (urutan wajib)
+```sh
+# 1. Hadoop terlebih dahulu
+docker compose -f docker-compose-hadoop.yml up -d
+
+# 2. Kafka
+docker compose -f docker-compose-kafka.yml up -d
+
+# 3. Spark
+docker compose -f docker-compose-spark.yml up -d
+```
+
+Verifikasi semua container berjalan:
+
+![Docker Desktop — semua container aktif](image/docker_desktop.png)
+
+### Langkah 4: Buat Kafka Topics (hanya pertama kali)
+```sh
+docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh \
+  --create --topic gempa-api --bootstrap-server localhost:9092 \
+  --partitions 1 --replication-factor 1
+
+docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh \
+  --create --topic gempa-rss --bootstrap-server localhost:9092 \
+  --partitions 1 --replication-factor 1
+```
+
+### Langkah 5: Buat Struktur Direktori HDFS (hanya pertama kali)
+```sh
+docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/api/
+docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/rss/
+docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/hasil/
+docker exec -it hadoop-namenode hdfs dfs -chmod -R 777 /data
+```
+
+---
+
+## 🚀 Cara Menjalankan Sistem
+
+Jalankan **masing-masing script di terminal terpisah** dari folder root proyek.
+
+### Terminal 1 — Producer API (USGS)
+```sh
+cd kafka
+python producer_api.py
+```
+![Producer API berjalan — mengirim event gempa ke Kafka](image/producer_api_gempa.png)
+
+Script ini polling USGS FDSN API setiap 30 detik, mengambil 100 event gempa terbaru di area Indonesia (bounding box lat -11 s/d 6, lon 95 s/d 141), dan mengirimkan setiap event sebagai pesan JSON ke topic `gempa-api`.
+
+### Terminal 2 — Producer RSS (Google News)
+```sh
+cd kafka
+python producer_rss.py
+```
+![Producer RSS berjalan — mengirim berita gempa ke Kafka](image/producer_rss_gempa.png)
+
+Script ini polling Google News RSS setiap 30 detik, mem-parse artikel dengan `feedparser`, dan mengirim berita baru (deduplikasi via hash URL) ke topic `gempa-rss`.
+
+### Terminal 3 — Consumer to HDFS
+```sh
+cd kafka
+python consumer_to_hdfs.py
+```
+![Consumer HDFS berjalan — buffer dan flush data](image/consumer_to_hdfs.png)
+
+Consumer membaca kedua topic Kafka dan mengakumulasi data di buffer memori. Setiap **2 menit**, buffer di-flush ke HDFS sebagai file JSON dengan timestamp (contoh: `/data/gempa/api/2026-05-08_15-00.json`) sekaligus disimpan lokal ke `dashboard/data/live_api.json`.
+
+### Terminal 4 — Spark Auto Runner
+```sh
+cd kafka
+python spark_runner.py
+```
+![Spark Runner — analisis otomatis setiap 10 menit](image/spark_runner.png)
+
+`spark_runner.py` menjalankan `spark_processing.py` via `docker exec` ke container `spark-master` langsung saat dijalankan, lalu mengulang setiap 10 menit secara otomatis. Output analisis mencakup:
+- Distribusi magnitudo (Mikro / Minor / Sedang / Kuat)
+- Top 10 wilayah paling aktif
+- Distribusi & statistik kedalaman
+- MLlib Linear Regression (prediksi tren magnitudo)
+
+Hasil disimpan ke `dashboard/data/spark_results.json` untuk ditampilkan di dashboard.
+
+### Terminal 5 — Flask Dashboard
+```sh
+cd dashboard
+python app.py
+```
+![Flask Dashboard berjalan di localhost:5000](image/app_dashboard_py.png)
+
+Dashboard tersedia di **http://localhost:5000**. Flask juga menjalankan background thread yang me-refresh data langsung dari USGS setiap 5 menit sebagai lapisan pelengkap pipeline Kafka.
+
+---
+
+## 🔍 Komponen 1 — Apache Kafka: Ingestion Layer
+
+### Producer API (`producer_api.py`)
+- **Sumber data**: USGS FDSN API (`earthquake.usgs.gov/fdsnws`)
+- **Interval polling**: 30 detik
+- **Topic tujuan**: `gempa-api`
+- **Format pesan**:
   ```json
-  {"timestamp": "2026-04-29T14:21:47.918453", "id": "us7000sgql", "magnitude": 4.1, "place": "105 km ESE of Luwuk, Indonesia", "time_epoch": 1776632704786, "longitude": 123.6907, "latitude": -1.2423, "depth": 10}
+  {
+    "id": "us7000sgql",
+    "source": "usgs_api",
+    "event_time": "2026-05-08T07:00:00+00:00",
+    "event_time_epoch": 1746684000000,
+    "magnitude": 4.1,
+    "magnitude_type": "mb",
+    "depth_km": 10.0,
+    "latitude": -1.24,
+    "longitude": 123.69,
+    "place": "105 km ESE of Luwuk, Indonesia",
+    "tsunami": 0,
+    "felt": null,
+    "sig": 259
+  }
   ```
 
-- **Cek gempa-rss**:
-  ```sh
-  docker exec -it kafka-broker /opt/kafka/bin/kafka-console-consumer.sh --topic gempa-rss --from-beginning --bootstrap-server localhost:9092
-  ```
-  **Output yang diharapkan:**
-  ```json
-  {"timestamp": "2026-04-29T14:55:50.628978", "hash_id": "69e164b5", "title": "BMKG pastikan gempa 6,1 magnitudo di Alaska tak berdampak terhadap Indonesia - ANTARA News Kepri", "link": "https://news.google.com/rss/articles/CBMiugFBVV95cUxOUjNNMHZqal8yUm9VUDkwWHpEQ1ZqRGZ0TzNtZ25uNEx5X0UyYW5hSElzOVNFWGgtXzVJVWRVZ3VYcHlkQ1ljZDlYRGpWM0g1ZTd2NWQzOERSdHB5dWpObURlcENENnY1RUZaX2h4aFFjemRJUDNQVlJKOG1uTFNOanRuUUlRYVpjTUU0QVdQWmJGcHhSZWdlT1JUX2FUM0NNOW5UNjk1X1o5XzNpcmxxVmxsS3V6QTIwOWc?oc=5", "summary": "<a href=\"https://news.google.com/rss/articles/CBMiugFBVV95cUxOUjNNMHZqal8yUm9VUDkwWHpEQ1ZqRGZ0TzNtZ25uNEx5X0UyYW5hSElzOVNFWGgtXzVJVWRVZ3VYcHlkQ1ljZDlYRGpWM0g1ZTd2NWQzOERSdHB5dWpObURlcENENnY1RUZaX2h4aFFjemRJUDNQVlJKOG1uTFNOanRuUUlRYVpjTUU0QVdQWmJGcHhSZWdlT1JUX2FUM0NNOW5UNjk1X1o5XzNpcmxxVmxsS3V6QTIwOWc?oc=5\" target=\"_blank\">BMKG pastikan gempa 6,1 magnitudo di Alaska tak berdampak terhadap Indonesia</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">ANTARA News Kepri</font>", "published": "Mon, 23 Feb 2026 08:00:00 GMT"}
-  ```
+### Producer RSS (`producer_rss.py`)
+- **Sumber data**: Google News RSS (`news.google.com/rss/search?q=gempa+indonesia`)
+- **Interval polling**: 30 detik
+- **Topic tujuan**: `gempa-rss`
+- **Deduplication**: hash 8 karakter dari URL artikel
 
-### 1.7 Kendala & Solusi Link RSS
-- **Kendala BMKG**: Sudah mematikan format RSS lama mereka (`gempa_m50.xml`) dan menggantinya dengan format XML murni di server baru (`data.bmkg.go.id`). Format XML baru ini tidak bisa dibaca oleh `feedparser` yang diwajibkan.
-- **Kendala Tempo**: Mereka melakukan pembaruan sistem dan menghapus semua link RSS yang berdasarkan tag spesifik (setelah `/tag/gempa-bumi`).
+### Kendala & Solusi RSS
+| Sumber | Masalah | Status |
+|--------|---------|--------|
+| BMKG | Migrasi ke XML murni, tidak kompatibel `feedparser` | Dihapus |
+| Detik | HTTP 404 | Dihapus |
+| Kompas | XML tidak valid | Dihapus |
+| Tempo | Menghapus endpoint RSS per-tag | Dihapus |
+| Liputan6 | HTTP 404 | Dihapus |
+| **Google News** | Stabil, selalu tersedia | **Digunakan** |
 
-**Solusi**: Menggunakan Google News RSS
-`https://news.google.com/rss/search?q=gempa+indonesia&hl=id&gl=ID&ceid=ID:id`
+### Verifikasi Kafka
+```sh
+# Cek topic yang ada
+docker exec -it kafka-broker /opt/kafka/bin/kafka-topics.sh \
+  --list --bootstrap-server localhost:9092
+
+# Monitor pesan masuk real-time
+docker exec -it kafka-broker /opt/kafka/bin/kafka-console-consumer.sh \
+  --topic gempa-api --from-beginning --bootstrap-server localhost:9092
+```
 
 ---
 
 ## 📂 Komponen 2 — HDFS: Storage Layer
 
-### 2.1 Setup Hadoop menggunakan Docker Compose (P4)
-Membuat file `docker-compose-hadoop.yml` and `hadoop.env`. Lalu jalankan:
-```sh
-docker compose -f docker-compose-hadoop.yml up -d
+### Consumer (`consumer_to_hdfs.py`)
+Consumer menggunakan `assign()` + `seek_to_beginning()` (bukan `subscribe()`) untuk menghindari bug `kafka-python-ng` pada Python 3.13 Windows terkait `Invalid file descriptor: -1`.
+
+**Alur kerja:**
+1. Assign ke `TopicPartition('gempa-api', 0)` dan `TopicPartition('gempa-rss', 0)`
+2. `seek_to_beginning()` — baca semua pesan dari awal
+3. Akumulasi di buffer memori
+4. Setiap 120 detik: flush ke HDFS + simpan lokal ke `dashboard/data/`
+5. Commit offset ke broker
+
+**Struktur penyimpanan HDFS:**
+```
+/data/gempa/
+├── api/
+│   ├── 2026-05-08_15-00.json   (~100-200 record per file)
+│   ├── 2026-05-08_15-02.json
+│   └── ...
+├── rss/
+│   ├── 2026-05-08_15-00.json
+│   └── ...
+└── hasil/
+    └── (output Spark)
 ```
 
-### 2.2 Buat Struktur Direktori di HDFS
+### Verifikasi HDFS
 ```sh
-docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/api/
-docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/rss/
-docker exec -it hadoop-namenode hdfs dfs -mkdir -p /data/gempa/hasil/
-docker exec -it hadoop-namenode hdfs dfs -mkdir -p /checkpoints/
-docker exec -it hadoop-namenode hdfs dfs -chmod -R 777 /data
+# Cek isi direktori
+docker exec -it hadoop-namenode hdfs dfs -ls -R /data/gempa/
+
+# Cek ukuran data
+docker exec -it hadoop-namenode hdfs dfs -du -h /data/gempa/api/
+
+# Baca file tertentu
+docker exec -it hadoop-namenode hdfs dfs -cat /data/gempa/api/2026-05-08_15-00.json
 ```
 
-### 2.3 Install Library HDFS
-Tetap berada di folder `kafka` jalankan perintah:
-```sh
-pip install hdfs
-```
+**Web UI HDFS**: http://localhost:9870
 
-### 2.4 Cara Memverifikasi HDFS Berjalan
-Pastikan `producer_api.py` and `producer_rss.py` menyala, lalu jalankan script `consumer_to_hdfs.py`.
+![HDFS Web UI — Overview](image/overview_hdfs.png)
 
-- **Cek isi direktori** (akan muncul daftar file JSON):
-  ```sh
-  docker exec -it hadoop-namenode hdfs dfs -ls -R /data/gempa/
-  ```
-- **Cek ukuran file**:
-  ```sh
-  docker exec -it hadoop-namenode hdfs dfs -du -h /data/gempa/api/
-  ```
-- **Baca File**:
-  ```sh
-  docker exec -it hadoop-namenode hdfs dfs -cat /data/gempa/api/[nama file]
-  ```
+![HDFS — Browse direktori](image/browse_directory_hdfs.png)
+
+![HDFS — Isi direktori /data/gempa](image/browse_directory_hdfs_data.png)
 
 > [!IMPORTANT]
-> **Tambahan Konfigurasi Hosts**:
-> Pastikan baris berikut ada di `C:\Windows\System32\drivers\etc\hosts`:
-> `127.0.0.1 datanode`
+> Pastikan baris `127.0.0.1 datanode` ada di `C:\Windows\System32\drivers\etc\hosts` (buka Notepad sebagai Administrator).
 
 ---
 
-## 🧠 Komponen 3 — Apache Spark: Ultimate Processing Layer (1 Orang)
-Bagian ini telah dioptimasi untuk mendapatkan **Skor Maksimal (30/30)** dan **Bonus (+5 MLlib)** berdasarkan rubrik penilaian BPBD.
+## 🧠 Komponen 3 — Apache Spark: Processing Layer
 
-### 3.1 Fitur "Elite & Perfect":
-1.  **Dual-Mode Processing**: Membaca data historis dari HDFS (Batch) untuk laporan statistik dan data real-time dari Kafka (Streaming).
-2.  **3 Analisis Wajib BPBD**: Distribusi Magnitudo (Mikro/Minor/Sedang/Kuat), Top 10 Wilayah Aktif, dan Distribusi Kedalaman.
-3.  **Spark MLlib (Bonus +5)**: Implementasi *Linear Regression* untuk memprediksi tren kekuatan gempa berdasarkan data epoch.
-4.  **Delta Lake Storage**: Penyimpanan format Delta untuk menjamin integritas data (ACID) dan efisiensi query.
+### `spark_processing.py`
+Script analisis batch yang membaca semua file JSON dari HDFS dan menghasilkan 3 analisis wajib + 1 bonus MLlib.
 
-### 3.2 Eksekusi Spark Engine:
-```sh
-docker exec spark-master /opt/spark/bin/spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0 \
---conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
---conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
-kafka/spark_processing.py
+**Konfigurasi SparkSession:**
+```python
+spark = SparkSession.builder \
+    .appName("GempaRadar-Analysis") \
+    .master("spark://spark-master:7077") \
+    .config("spark.hadoop.fs.defaultFS", "hdfs://hadoop-namenode:8020") \
+    .getOrCreate()
 ```
 
-### 3.3 Output yang Diharapkan (Laporan Analitik BPBD)
-Terminal akan menampilkan laporan otomatis untuk BPBD:
+### Analisis yang Dilakukan
 
-**A. Distribusi Magnitudo (Analisis Wajib 1)**
-```text
+**A. Distribusi Magnitudo** (DataFrame API)
+```
 +------------+-----+
 |kategori_mag|count|
 +------------+-----+
-|Minor (3-4) |45   |
-|Sedang (4-5)|12   |
+|Sedang (4-5)|37544|
+|   Kuat (>5)| 6116|
 +------------+-----+
 ```
 
-**B. Top 10 Wilayah Paling Aktif (Analisis Wajib 2)**
-```text
-+-------------------+-----+
-|wilayah            |count|
-+-------------------+-----+
-|Bitung, Indonesia  |8    |
-|Java, Indonesia    |5    |
-+-------------------+-----+
+**B. Top 10 Wilayah Paling Aktif** (Spark SQL)
+```
++-----------------------+------------+--------+-------------+
+|wilayah                |jumlah_gempa|rata_mag|rata_depth_km|
++-----------------------+------------+--------+-------------+
+|Ternate, Indonesia     |6946        |4.61    |48.6         |
+|Bitung, Indonesia      |4356        |4.71    |35.8         |
+|Lospalos, Timor Leste  |3933        |4.39    |189.0        |
++-----------------------+------------+--------+-------------+
 ```
 
-**C. Tren MLlib (Bonus +5)**
-```text
-> Prediksi Tren: Magnitudo cenderung naik seiring waktu.
+**C. Distribusi & Statistik Kedalaman** (Spark SQL)
+```
++-------+--------+-----+---------------+---------+---------+
+|dangkal|menengah|dalam|rata_rata_depth|depth_max|depth_min|
++-------+--------+-----+---------------+---------+---------+
+|  24407|   15284| 3969|          111.4|    603.8|     10.0|
++-------+--------+-----+---------------+---------+---------+
 ```
 
-**D. Real-Time Alert Monitoring (Streaming)**
-Berikut adalah tampilan konsol saat gempa baru masuk secara real-time:
-```text
-+----------+---------+-------+--------------------------+--------------+----------------------------------+
-|Waktu     |magnitude|depth  |status_siaga              |jarak_jkt_km  |place                             |
-+----------+---------+-------+--------------------------+--------------+----------------------------------+
-|21:45:10  |6.1      |10.0   |🔴 AWAS (BAHAYA TINGGI)   |1842.0        |120 km E of Bitung, Indonesia     |
-|22:12:05  |4.5      |35.2   |🟡 SIAGA (MENENGAH)       |650.0         |South of Java, Indonesia          |
-|23:05:44  |3.2      |120.5  |🟢 WASPADA (RENDAH)       |1205.0        |Banda Sea, Indonesia              |
-+----------+---------+-------+--------------------------+--------------+----------------------------------+
+**D. MLlib Linear Regression (Bonus +5)**
+```
+  Koefisien : 0.0003 (per jam)
+  RMSE      : 0.3547
+  R2        : 0.0289
+  Tren      : Magnitudo cenderung naik seiring waktu
 ```
 
-### 3.4 Verifikasi Hasil di HDFS
-Sesuai rubrik, hasil ringkasan statistik disimpan ke JSON dan Delta:
-- **JSON Summary**: `docker exec hadoop-namenode hdfs dfs -cat /data/gempa/hasil/spark_results.json`
-- **Delta Table**: `docker exec hadoop-namenode hdfs dfs -ls -R /data/gempa/delta/quakes`
+### `spark_runner.py` — Otomatisasi
+```sh
+python spark_runner.py
+```
+
+Runner ini langsung menjalankan Spark job saat pertama kali dijalankan, lalu mengulang setiap 10 menit. Ubah `INTERVAL_MINUTES` di baris pertama file jika ingin interval berbeda.
+
+**Web UI Spark Master**: http://localhost:8080
 
 ---
 
-## 📊 Komponen 4 — Dashboard: Serving Layer (1 Orang)
-(Bagian ini akan menampilkan visualisasi data dari HDFS/Kafka secara real-time)
+## 📊 Komponen 4 — Dashboard: Serving Layer
+
+### Tampilan Dashboard
+
+**Peta 2D Interaktif:**
+
+![Peta 2D Dark Mode](image/Peta_2D_Gelap_View.png)
+
+![Peta 2D Street View](image/Peta_2D_Street_View.png)
+
+**Peta 3D Globe:**
+
+![Peta 3D Globe dengan statistik](image/Peta_3D.png)
+
+**Berita Gempa dari RSS:**
+
+![Berita gempa dari Google News](image/Berita.png)
+
+### Fitur Dashboard
+| Tab / Fitur | Deskripsi |
+|-------------|-----------|
+| **Real-time** | Semua gempa terkini dari USGS (max 100 event) |
+| **Terkini** | 1 gempa terbaru dengan detail lengkap |
+| **M 5.0+** | Filter gempa kuat saja |
+| **Dirasakan** | Gempa yang dilaporkan dirasakan masyarakat |
+| **Berpotensi Tsunami** | Gempa dengan `tsunami=1` ATAU `M>=6 & depth<100km` ATAU `M>=5.5 & depth<50km` |
+| **Peta 3D Globe** | Visualisasi globe interaktif dengan Mapbox |
+| **Statistik Spark** | Hasil analisis batch dari HDFS (diperbarui tiap 10 menit) |
+| **Berita** | Artikel gempa dari Google News RSS |
+
+### Menjalankan Dashboard
+```sh
+cd dashboard
+python app.py
+```
+
+Akses di **http://localhost:5000**
 
 ---
 
-## 🛠️ Up & Down (Maintenance)
+## 🛠️ Pemeliharaan (Maintenance)
 
-### Mematikan Layanan
+### Mematikan Semua Layanan
 ```sh
 docker compose -f docker-compose-spark.yml down
 docker compose -f docker-compose-kafka.yml down
 docker compose -f docker-compose-hadoop.yml down
 ```
 
-### Menyalakan Layanan (Urutan: Hadoop -> Kafka -> Spark)
+### Menyalakan Ulang (Urutan wajib: Hadoop → Kafka → Spark)
 ```sh
 docker compose -f docker-compose-hadoop.yml up -d
 docker compose -f docker-compose-kafka.yml up -d
 docker compose -f docker-compose-spark.yml up -d
 ```
 
+Setelah Docker siap, jalankan 5 script Python di terminal masing-masing:
+```sh
+# Terminal 1
+python kafka/producer_api.py
+
+# Terminal 2
+python kafka/producer_rss.py
+
+# Terminal 3
+python kafka/consumer_to_hdfs.py
+
+# Terminal 4
+python kafka/spark_runner.py
+
+# Terminal 5
+python dashboard/app.py
+```
+
+### Cek Status Container
+```sh
+docker ps
+```
+Semua container berikut harus berstatus `Up`: `kafka-broker`, `spark-master`, `spark-worker`, `hadoop-namenode`, `hadoop-datanode`, `hadoop-resourcemanager`, `hadoop-nodemanager`.
+
 ---
-> **Kelompok 1 - Big Data UTS**
-> *Working hard to monitor every shake.* 🌋
+
+> **Kelompok 1 — Big Data ETS**
+> *Working hard to monitor every shake.*

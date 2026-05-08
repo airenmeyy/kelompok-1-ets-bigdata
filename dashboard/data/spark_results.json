@@ -1,68 +1,68 @@
 {
   "source": "spark_hdfs",
-  "total_gempa": 160,
-  "avg_magnitude": 4.63,
+  "total_gempa": 52160,
+  "avg_magnitude": 4.55,
   "max_magnitude": 5.8,
-  "rata_rata_kedalaman": 173.9,
+  "rata_rata_kedalaman": 111.1,
   "distribusi_magnitudo": {
     "Mikro (<3)": 0,
     "Minor (3-4)": 0,
-    "Sedang (4-5)": 136,
-    "Kuat (>5)": 24
+    "Sedang (4-5)": 44854,
+    "Kuat (>5)": 7306
   },
   "top_wilayah": [
     {
+      "wilayah": "Ternate, Indonesia",
+      "count": 7961
+    },
+    {
+      "wilayah": "Bitung, Indonesia",
+      "count": 5344
+    },
+    {
       "wilayah": "Lospalos, Timor Leste",
-      "count": 16
+      "count": 4767
+    },
+    {
+      "wilayah": "Modisi, Indonesia",
+      "count": 3180
+    },
+    {
+      "wilayah": "Abepura, Indonesia",
+      "count": 2141
+    },
+    {
+      "wilayah": "Tual, Indonesia",
+      "count": 2090
+    },
+    {
+      "wilayah": "Gunungsitoli, Indonesia",
+      "count": 2072
     },
     {
       "wilayah": "Tobelo, Indonesia",
-      "count": 16
+      "count": 1728
     },
     {
       "wilayah": "Banda Sea",
-      "count": 13
+      "count": 1587
     },
     {
-      "wilayah": "Palimbang, Philippines",
-      "count": 8
-    },
-    {
-      "wilayah": "Cilacap, Indonesia",
-      "count": 8
-    },
-    {
-      "wilayah": "Metinaro, Timor Leste",
-      "count": 8
-    },
-    {
-      "wilayah": "Ternate, Indonesia",
-      "count": 8
-    },
-    {
-      "wilayah": "Sanana, Indonesia",
-      "count": 8
-    },
-    {
-      "wilayah": "Ransiki, Indonesia",
-      "count": 8
-    },
-    {
-      "wilayah": "Tambolaka, Indonesia",
-      "count": 8
+      "wilayah": "Sarangani, Philippines",
+      "count": 1572
     }
   ],
   "distribusi_kedalaman": {
-    "Dangkal (<70 km)": 69,
-    "Menengah (70-300 km)": 59,
-    "Dalam (>300 km)": 32
+    "Dangkal (<70 km)": 29236,
+    "Menengah (70-300 km)": 18190,
+    "Dalam (>300 km)": 4734
   },
-  "wilayah_teraktif": "Lospalos, Timor Leste",
+  "wilayah_teraktif": "Ternate, Indonesia",
   "mllib": {
     "tren": "naik",
-    "koefisien_per_jam": 0.001787,
-    "rmse": 0.3959,
-    "r2": 0.0517
+    "koefisien_per_jam": 0.000322,
+    "rmse": 0.3547,
+    "r2": 0.0252
   },
-  "last_updated": "2026-05-06 06:47:33 UTC"
+  "last_updated": "2026-05-08 08:32:18 UTC"
 }

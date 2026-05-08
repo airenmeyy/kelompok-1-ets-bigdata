@@ -15,9 +15,6 @@ spark = SparkSession.builder \
     .appName("GempaRadar-Analysis") \
     .master("spark://spark-master:7077") \
     .config("spark.hadoop.fs.defaultFS", "hdfs://hadoop-namenode:8020") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0") \
-    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
     .getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
@@ -27,7 +24,7 @@ HDFS_RSS  = "hdfs://hadoop-namenode:8020/data/gempa/rss/"
 HDFS_HASIL = "hdfs://hadoop-namenode:8020/data/gempa/hasil/"
 
 print("\n" + "="*60)
-print("  GempaRadar Analytics ” Batch Analysis from HDFS")
+print("  GempaRadar Analytics - Batch Analysis from HDFS")
 print("="*60)
 
 # 2. BACA DATA API DARI HDFS 

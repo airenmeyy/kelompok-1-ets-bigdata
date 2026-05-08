@@ -3,7 +3,16 @@ import json
 import time
 import logging
 import hashlib
+import socket
 from datetime import datetime, timezone
+
+# Fix: redirect kafka-broker → localhost agar bisa diakses dari Windows host
+_orig_getaddrinfo = socket.getaddrinfo
+def _patched_getaddrinfo(host, port, *args, **kwargs):
+    if host == 'kafka-broker':
+        host = '127.0.0.1'
+    return _orig_getaddrinfo(host, port, *args, **kwargs)
+socket.getaddrinfo = _patched_getaddrinfo
  
 import requests
 from kafka import KafkaProducer

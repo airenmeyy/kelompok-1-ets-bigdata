@@ -252,13 +252,17 @@ function filterByTab(list, tab) {
     case 'terkini': return [...list].sort((a,b) => (b.event_time||'').localeCompare(a.event_time||'')).slice(0, 1);
     case 'm5': return list.filter(g => (g.magnitude||0) >= 5.0);
     case 'dirasakan': return list.filter(g => (g.felt||0) > 0 || (g.sig||0) >= 400 || ((g.magnitude||0) >= 4.5 && (g.depth_km||999) <= 60));
-    case 'tsunami': return list.filter(g => g.tsunami === 1 || ((g.magnitude||0) >= 6.0 && (g.depth_km||999) < 100));
+    case 'tsunami': return list.filter(g => isTsunami(g));
     case 'realtime': return list;
     default: return list;
   }
 }
 
 // ── Helpers ──
+function isTsunami(g) {
+  const m = g.magnitude || 0, d = g.depth_km || 999;
+  return g.tsunami == 1 || (m >= 6.0 && d < 100) || (m >= 5.5 && d < 50);
+}
 function magColor(m) { return m>=5?'#ef4444':m>=4?'#f97316':m>=3?'#3b82f6':'#94a3b8'; }
 function magR(m) { return Math.max(5, m * 3.8); }
 function magCls(m) { return m<3?'m-mikro':m<4?'m-minor':m<5?'m-sedang':'m-kuat'; }
@@ -282,7 +286,7 @@ function fmtWIB(iso) {
 function showDetailCard(g, mapId) {
   const m = g.magnitude||0, d = g.depth_km||0;
   const felt = g.felt||0;
-  const tsun = g.tsunami===1||(m>=6.0&&d<100)||(m>=5.5&&d<50);
+  const tsun = isTsunami(g);
   let statusCls='gs-confirmed', statusTxt='Terkonfirmasi';
   if (felt>0) { statusCls='gs-felt'; statusTxt='Gempa Dirasakan'; }
   if (tsun) { statusCls='gs-warning'; statusTxt='Berpotensi Tsunami'; }
@@ -409,7 +413,7 @@ function renderMapSidebar(list) {
     const depth = g.depth_km || 0;
     const id = g.id || (g.place + g.event_time);
     const isActive = id === activeSidebarId;
-    const tsun = g.tsunami === 1 || (m >= 6.0 && depth < 100);
+    const tsun = isTsunami(g);
     const safeG = JSON.stringify(g).replace(/"/g, '&quot;');
     return `<div class="msb-item${isActive ? ' active' : ''}" data-msb-id="${id}"
       onclick="sidebarSelect(${safeG}, '${id}')">
@@ -578,7 +582,7 @@ function showGlobeDetailCard(g) {
   const m = g.magnitude || 0;
   const depth = g.depth_km ?? '—';
   const dc = g.depth_category || (depth < 70 ? 'Dangkal' : depth < 300 ? 'Menengah' : 'Dalam');
-  const hasTsunami = g.tsunami === 1 || (m >= 6 && depth < 100);
+  const hasTsunami = isTsunami(g);
 
   // Status badge
   const statusEl = document.getElementById('gdc-status');
