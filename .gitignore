@@ -12,3 +12,7 @@ data/*.json
 *.pyo
 *.pyd
 .ipynb_checkpoints/
+
+# Abaikan semua data Delta Lake, tapi pertahankan struktur foldernya
+lakehouse/lakehouse_data/*
+!lakehouse/lakehouse_data/.gitkeep
