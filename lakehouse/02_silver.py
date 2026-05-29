@@ -240,6 +240,14 @@ try:
 
     # --- Simpan ke Silver Delta (Version 0) ---
     print(f"\n[*] Menulis Silver API ke Delta table (Version 0)...")
+    # Bersihkan folder jika ada agar version log reset ke 0 untuk demo reproduktif
+    import shutil
+    clean_path = SILVER_API_PATH.replace("file://", "")
+    if os.path.exists(clean_path):
+        try:
+            shutil.rmtree(clean_path)
+        except Exception:
+            pass
     silver_api.write.format("delta").mode("overwrite").save(SILVER_API_PATH)
     print(f"[+] Silver API tersimpan: {SILVER_API_PATH}")
 
@@ -330,6 +338,14 @@ try:
 
     # --- Simpan ke Silver Delta (Version 0) ---
     print(f"\n[*] Menulis Silver RSS ke Delta table (Version 0)...")
+    # Bersihkan folder jika ada agar version log reset ke 0 untuk demo reproduktif
+    import shutil
+    clean_path_rss = SILVER_RSS_PATH.replace("file://", "")
+    if os.path.exists(clean_path_rss):
+        try:
+            shutil.rmtree(clean_path_rss)
+        except Exception:
+            pass
     silver_rss.write.format("delta").mode("overwrite").save(SILVER_RSS_PATH)
     print(f"[+] Silver RSS tersimpan: {SILVER_RSS_PATH}")
 
