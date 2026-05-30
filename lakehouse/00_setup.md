@@ -98,29 +98,39 @@ Script ini mendemonstrasikan kekuatan pencatatan riwayat transaksi (*transaction
 
 ---
 
-## 🥇 Cara Menjalankan Gold Layer — Reproduksi ETS (Anggota 3)
+## 🥇 Cara Menjalankan Gold Layer — Reproduksi ETS & Enhanced Data(Anggota 3 & 4)
 
-Setelah data Silver berhasil terbentuk, Anda dapat mengeksekusi pipeline **Gold Layer** yang mereproduksi seluruh analisis wajib ETS dari `kafka/spark_processing.py`. Perbedaan utamanya: data dibaca dari **Silver Delta** (bukan HDFS JSON mentah) dan hasilnya disimpan sebagai **Gold Delta tables**.
+Setelah data Silver API dan RSS sukses dibentuk, jalankan pipeline Gold Layer gabungan. File 03_gold.py memproses Reproduksi Analisis ETS (Tugas Anggota 3) sekaligus Analisis Pengayaan/Enhancement (Tugas Anggota 4) dalam satu sesi Spark terpadu.
 
 ```bash
-# Jalankan script Gold Layer ETS
-python lakehouse/03_gold_ets.py
+# Jalankan script Gold Layer
+python lakehouse/03_gold.py
 ```
 
-### ⚙️ Analisis yang Direproduksi
-Script ini mereproduksi **3 analisis wajib + 1 bonus MLlib** yang identik dengan `kafka/spark_processing.py`:
+### ⚙️ Matriks Output Analisis (Combined Gold Layer)
 
-| No | Analisis | Metode | Output Gold Delta |
-| :--- | :--- | :--- | :--- |
-| **1** | **Distribusi Magnitudo** | DataFrame API (`when/otherwise`) | `gold/ets_distribusi_magnitudo` |
-| **2** | **Top 10 Wilayah Aktif** | Spark SQL (`REGEXP_REPLACE + GROUP BY`) | `gold/ets_top_wilayah` |
-| **3** | **Distribusi & Statistik Kedalaman** | Spark SQL (`SUM CASE WHEN + AVG/MAX/MIN`) | `gold/ets_distribusi_kedalaman` |
-| **4** | **Statistik Ringkasan** | Spark SQL (`COUNT, AVG, MAX, MIN, STDDEV`) | `gold/ets_statistik_ringkasan` |
-| **Bonus** | **Spark MLlib Linear Regression** | `VectorAssembler + LinearRegression` | `gold/ets_mllib_tren` |
+Script ini secara otomatis membagi beban komputasi menjadi dua kelompok metrik utama dan mengeluarkan 7 output tabel Delta:
+
+| No | Analisis | Metode | Output Gold Delta | Kontributor |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | **Distribusi Magnitudo** | DataFrame API (`when/otherwise`) | `gold/ets_distribusi_magnitudo` | Anggota 3 |
+| **2** | **Top 10 Wilayah Aktif** | Spark SQL (`REGEXP_REPLACE + GROUP BY`) | `gold/ets_top_wilayah` | Anggota 3 |
+| **3** | **Distribusi & Statistik Kedalaman** | Spark SQL (`SUM CASE WHEN + AVG/MAX/MIN`) | `gold/ets_distribusi_kedalaman` | Anggota 3 |
+| **4** | **Statistik Ringkasan** | Spark SQL (`COUNT, AVG, MAX, MIN, STDDEV`) | `gold/ets_statistik_ringkasan` | Anggota 3 |
+| **5** | **Skor Risiko Wilayah** | Formula Kuantitatif (Freq × Avg Mag) | `gold/gempa_risk_score` | Anggota 4 |
+| **6** | **Korelasi Berita Gempa** | Cross-Source Join (API + RSS)🌟 | `gold/gempa_significant_alerts`| Anggota 4 |
+| **Bonus** | **Spark MLlib Linear Regression** | `VectorAssembler + LinearRegression` | `gold/ets_mllib_tren` | Anggota 3 |
+
+### 🌟 Fitur Unggulan: Cross-Source Join 
+
+Pada tabel gempa_significant_alerts, Spark melakukan conditional inner join lintas platform data yang tidak memiliki ID penghubung bawaan. Data seismik fisik dari Silver API dan data narasi berita dari Silver RSS digabungkan menggunakan korelasi kontekstual berbasis jendela waktu (temporal window constraint):
+
+> Kondisi Join=Waktu Terbit Berita∈[Waktu Kejadian Gempa,Waktu Kejadian Gempa+2 Jam]
 
 ### 📝 Catatan Penting
-- Script ini juga menghasilkan file `dashboard/data/spark_results.json` untuk ditampilkan di Flask Dashboard (sama seperti `spark_processing.py` asli).
-- Auto-redirect ke Docker container `spark-master` akan aktif jika dijalankan dari Windows tanpa `HADOOP_HOME`.
+- Seluruh input data Silver API dan RSS dibaca bersamaan di bagian awal script menggunakan prinsip Fail-Fast untuk meminimalisir kegagalan parsial di tengah cluster.
+- Script menghasilkan file ringkasan terintegrasi dashboard/data/spark_results.json untuk visualisasi Flask Dashboard.
+- Gunakan perintah F5 (Reload) atau nyalakan ulang server web Flask Anda setelah skrip memunculkan log SUCCESS agar visualisasi menarik data terbaru dari file log Delta.
 
 ---
 
@@ -133,33 +143,39 @@ kelompok-1-ets-bigdata/
 └── lakehouse/
     └── lakehouse_data/
         ├── bronze/
-        │   ├── gempa_api/   <-- Tabel Delta Bronze API
+        │   ├── gempa_api/                  <-- Delta Layer Ingestion API
         │   │   ├── _delta_log/
         │   │   └── part-*.parquet
-        │   └── gempa_rss/   <-- Tabel Delta Bronze RSS
+        │   └── gempa_rss/                  <-- Delta Layer Ingestion RSS
         │       ├── _delta_log/
         │       └── part-*.parquet
         ├── silver/
-        │   ├── gempa_api/   <-- Tabel Delta Silver API (Bersih & Versi Terkini)
+        │   ├── gempa_api/                  <-- Data API Bersih (Deduped, Valid)
         │   │   ├── _delta_log/
         │   │   └── part-*.parquet
-        │   └── gempa_rss/   <-- Tabel Delta Silver RSS (Bersih & Bebas HTML)
+        │   └── gempa_rss/                  <-- Data RSS Bersih (No HTML)
         │       ├── _delta_log/
         │       └── part-*.parquet
         └── gold/
-            ├── ets_distribusi_magnitudo/   <-- Kategori Mikro/Minor/Sedang/Kuat
+            ├── ets_distribusi_magnitudo/   <-- Kategori Mikro ~ Kuat (ETS)
             │   ├── _delta_log/
             │   └── part-*.parquet
-            ├── ets_top_wilayah/            <-- Ranking wilayah gempa aktif
+            ├── ets_top_wilayah/            <-- Ranking 10 Wilayah Teraktif (ETS)
             │   ├── _delta_log/
             │   └── part-*.parquet
-            ├── ets_distribusi_kedalaman/   <-- Dangkal/Menengah/Dalam + statistik
+            ├── ets_distribusi_kedalaman/   <-- Statistik Kedalaman Gempa (ETS)
             │   ├── _delta_log/
             │   └── part-*.parquet
-            ├── ets_statistik_ringkasan/    <-- Summary stats (total, avg, max, min)
+            ├── ets_statistik_ringkasan/    <-- Gabungan Summary Stats (ETS)
             │   ├── _delta_log/
             │   └── part-*.parquet
-            └── ets_mllib_tren/             <-- Hasil Linear Regression MLlib
+            ├── ets_mllib_tren/             <-- Model Prediksi Tren Linear Regression (ETS)
+            │   ├── _delta_log/
+            │   └── part-*.parquet
+            ├── gempa_risk_score/           <-- METRIK BARU: Indeks Kerawanan Wilayah
+            │   ├── _delta_log/
+            │   └── part-*.parquet
+            └── gempa_significant_alerts/   <-- METRIK BARU: Hasil Cross-Source Join API+RSS
                 ├── _delta_log/
                 └── part-*.parquet
 ```
@@ -179,11 +195,13 @@ ls lakehouse/lakehouse_data/bronze/gempa_rss/
 ls lakehouse/lakehouse_data/silver/gempa_api/
 ls lakehouse/lakehouse_data/silver/gempa_rss/
 
-# 3. Cek isi folder output Gold (ETS)
+# 3. Cek isi folder output Gold 
 ls lakehouse/lakehouse_data/gold/ets_distribusi_magnitudo/
 ls lakehouse/lakehouse_data/gold/ets_top_wilayah/
 ls lakehouse/lakehouse_data/gold/ets_distribusi_kedalaman/
 ls lakehouse/lakehouse_data/gold/ets_statistik_ringkasan/
 ls lakehouse/lakehouse_data/gold/ets_mllib_tren/
+ls lakehouse/lakehouse_data/gold/gempa_risk_score/
+ls lakehouse/lakehouse_data/gold/gempa_significant_alerts/
 ```
 Pastikan folder `_delta_log/` (log transaksi) dan file data `.parquet` sudah terbuat di masing-masing direktori.

@@ -1,4 +1,5 @@
 """
+LEGACY
 Script: 03_gold_ets.py
 Deskripsi: Gold Layer — Reproduksi Analisis ETS dari spark_processing.py
            Membaca data bersih dari Silver Delta Layer (bukan HDFS JSON mentah),

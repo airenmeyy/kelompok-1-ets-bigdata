@@ -1,68 +1,68 @@
 {
-  "source": "gold_delta_ets",
-  "total_gempa": 142,
-  "avg_magnitude": 4.52,
+  "source": "gold_delta_combined",
+  "total_gempa": 90,
+  "avg_magnitude": 4.58,
   "max_magnitude": 6.2,
-  "rata_rata_kedalaman": 97.3,
+  "rata_rata_kedalaman": 98.8,
   "distribusi_magnitudo": {
     "Mikro (<3)": 0,
     "Minor (3-4)": 0,
-    "Sedang (4-5)": 125,
-    "Kuat (>5)": 17
+    "Sedang (4-5)": 78,
+    "Kuat (>5)": 12
   },
   "top_wilayah": [
     {
       "wilayah": "Ternate, Indonesia",
-      "count": 18
-    },
-    {
-      "wilayah": "Bitung, Indonesia",
-      "count": 17
-    },
-    {
-      "wilayah": "Lospalos, Timor Leste",
-      "count": 11
-    },
-    {
-      "wilayah": "Tual, Indonesia",
-      "count": 9
+      "count": 10
     },
     {
       "wilayah": "Tobelo, Indonesia",
       "count": 8
     },
     {
-      "wilayah": "Modisi, Indonesia",
+      "wilayah": "Bitung, Indonesia",
       "count": 7
     },
     {
-      "wilayah": "Abepura, Indonesia",
+      "wilayah": "Tual, Indonesia",
       "count": 7
     },
     {
-      "wilayah": "Gunungsitoli, Indonesia",
-      "count": 5
+      "wilayah": "Pondaguitan, Philippines",
+      "count": 4
     },
     {
       "wilayah": "Banda Sea",
       "count": 4
     },
     {
-      "wilayah": "Pante Makasar, Timor Leste",
+      "wilayah": "Lospalos, Timor Leste",
+      "count": 3
+    },
+    {
+      "wilayah": "Sarangani, Philippines",
+      "count": 3
+    },
+    {
+      "wilayah": "Tambolaka, Indonesia",
+      "count": 3
+    },
+    {
+      "wilayah": "Sinabang, Indonesia",
       "count": 3
     }
   ],
   "distribusi_kedalaman": {
-    "Dangkal (<70 km)": 86,
-    "Menengah (70-300 km)": 46,
-    "Dalam (>300 km)": 10
+    "Dangkal (<70 km)": 53,
+    "Menengah (70-300 km)": 30,
+    "Dalam (>300 km)": 7
   },
   "wilayah_teraktif": "Ternate, Indonesia",
   "mllib": {
     "tren": "naik",
-    "koefisien_per_jam": 0.000289,
-    "rmse": 0.3565,
-    "r2": 0.0288
+    "koefisien_per_jam": 0.000448,
+    "rmse": 0.403,
+    "r2": 0.0603
   },
-  "last_updated": "2026-05-29 07:53:10 UTC"
+  "last_updated": "2026-05-30 14:18:19 UTC"
 }

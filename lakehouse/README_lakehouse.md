@@ -100,20 +100,27 @@ Setelah demonstrasi berjalan, riwayat perubahan tercatat dengan rapi di dalam fo
 
 ---
 
-## 🥇 Dokumentasi Gold Layer — Reproduksi Analisis ETS (Anggota 3)
+## 🥇 Dokumentasi Gold Layer — Reproduksi ETS & Pengayaan Data (Anggota 3 & 4)
 
-Gold Layer merupakan tahap akhir dalam arsitektur Data Lakehouse, di mana data yang telah dibersihkan di Silver Layer diolah menjadi **tabel analitik siap pakai** (*business-ready aggregates*). Script `03_gold_ets.py` mereproduksi seluruh analisis wajib dari `kafka/spark_processing.py` (ETS asli) dengan perbedaan kunci:
+Gold Layer merupakan tahap akhir dalam arsitektur Data Lakehouse, di mana data yang telah dibersihkan di Silver Layer diolah menjadi tabel analitik siap pakai (business-ready aggregates). Script tunggal 03_gold.py memproses seluruh analisis wajib ETS sekaligus menyatukan fitur enhancement baru.
 
-| Aspek | ETS Asli (`spark_processing.py`) | Gold Reproduksi (`03_gold_ets.py`) |
+### 🔄 Perbandingan Skrip Analisis Akhir (Value Proposition)
+
+Berikut adalah matriks perbedaan fundamental komparatif antara arsitektur pemrosesan data tradisional (ETS awal) dengan sistem Lakehouse Gold Layer yang baru dikembangkan:
+
+| Aspek | ETS Asli (`spark_processing.py`) | Gold Reproduksi (`03_gold.py`) |
 | :--- | :--- | :--- |
-| **Input** | HDFS JSON mentah (`/data/gempa/api/`) | Silver Delta (`lakehouse_data/silver/gempa_api`) |
-| **Output** | HDFS JSON + `spark_results.json` | **Gold Delta tables** + `spark_results.json` |
+| **Input** | HDFS JSON mentah (`/data/gempa/api/`) | Membaca pararel silver/gempa_api dan silver/gempa_rss. |
+| **Output** | HDFS JSON + `spark_results.json` | **7 Tabel Delta Lake Berkinerja Tinggi** + Terintegrasi `spark_results.json`. |
 | **Kualitas Data** | Data mentah, mungkin ada duplikat/error | Data sudah bersih (deduplicated, filtered, typed) |
 | **Reproducibility** | Bergantung pada ketersediaan HDFS | Delta Lake menjamin data versioned & reproducible |
+| **Kapabilitas** | Hanya mencakup 3 analisis wajib + 1 bonus tren MLlib | 4 analisis reproduksi ETS, Spark MLlib, ditambah 2 indeks pengayaan baru. |
+| **Korelasi** | Bersifat Silo (Data gempa dan berita terpisah tanpa jembatan) | Korelasi temporal otomatis antara sensor fisik dan artikel berita media. |
 
-### 📊 Analisis yang Direproduksi
+### 📊 Bagian I — Analisis Reproduksi ETS (Tugas Anggota 3)
+Bagian ini mereproduksi seluruh analisis wajib dari kafka/spark_processing.py (ETS asli) dengan memanfaatkan keunggulan data Delta Layer yang steril:
 
-#### Analisis 1 — Distribusi Magnitudo (DataFrame API)
+#### Metrik 1 — Distribusi Kategori Magnitudo (DataFrame API)
 Mengkategorikan setiap gempa berdasarkan kekuatannya menggunakan `when/otherwise`:
 - **Mikro (<3)**: Gempa sangat kecil, tidak terasa oleh manusia
 - **Minor (3-4)**: Terasa getaran ringan, jarang menyebabkan kerusakan
@@ -122,12 +129,12 @@ Mengkategorikan setiap gempa berdasarkan kekuatannya menggunakan `when/otherwise
 
 **Output Delta**: `gold/ets_distribusi_magnitudo`
 
-#### Analisis 2 — Top 10 Wilayah Paling Aktif (Spark SQL)
+#### Metrik 2 — Ranking Top 10 Wilayah Paling Aktif (Spark SQL)
 Menghitung frekuensi gempa per wilayah dengan `REGEXP_REPLACE` untuk mengekstrak nama wilayah dari kolom `place`, lalu mengurutkan berdasarkan jumlah kejadian terbanyak. Membantu BPBD memprioritaskan penempatan sensor dan tim respons.
 
 **Output Delta**: `gold/ets_top_wilayah`
 
-#### Analisis 3 — Distribusi & Statistik Kedalaman (Spark SQL)
+#### Metrik 3 — Distribusi & Statistik Kedalaman Seismik (Spark SQL)
 Mengkategorikan gempa berdasarkan kedalaman pusat gempa:
 - **Dangkal (<70 km)**: Paling berbahaya, dekat permukaan, potensi tsunami
 - **Menengah (70-300 km)**: Getaran moderat di permukaan
@@ -137,15 +144,38 @@ Ditambah statistik rata-rata, maksimum, dan minimum kedalaman.
 
 **Output Delta**: `gold/ets_distribusi_kedalaman`
 
-#### Statistik Ringkasan
+#### Metrik 4 — Statistik Ringkasan Umum (Spark SQL)
 Agregasi keseluruhan: total gempa, rata-rata/max/min magnitudo, standar deviasi, dan statistik kedalaman.
 
 **Output Delta**: `gold/ets_statistik_ringkasan`
 
-#### Bonus — Spark MLlib Linear Regression
+#### Bonus Analisis — Prediksi Tren MLlib (Linear Regression)
 Prediksi tren magnitudo gempa seiring waktu menggunakan `VectorAssembler` + `LinearRegression`. Menghasilkan koefisien tren (naik/turun), RMSE, dan R².
 
 **Output Delta**: `gold/ets_mllib_tren`
+
+### 📊 Bagian II — Analisis Pengayaan / Enhancement (Tugas Anggota 4)
+Bagian ini menambahkan metrik analitik tingkat lanjut yang memberikan wawasan nilai bisnis baru di luar batasan spesifikasi tugas utama ETS:
+
+#### Metrik 5 — Indeks Skor Risiko Wilayah (gempa_risk_score)
+Mengembangkan formula kuantitatif kustom untuk memetakan wilayah yang paling rentan mengalami bencana hebat. Skor dihitung dengan mengalikan frekuensi gempa total di wilayah tersebut dengan kuadrat rata-rata magnitudo gempa yang terjadi:
+
+> Risk Score=Total Kejadian×(Rata-rata Magnitudo)2
+
+Tabel diurutkan dari wilayah dengan skor tertinggi untuk membantu alokasi mitigasi bencana pemerintah.
+
+**Output Delta Table**: `gold/gempa_risk_score`
+
+#### Metrik 6 — Korelasi Berita Gempa Kontekstual [Cross-Source Join]
+Ini adalah fitur utama pengayaan lintas sumber (cross-source integration). Karena data fisik seismik dari **Silver API** dan data narasi teks berita dari **Silver RSS** tidak memiliki ID relasional bawaan, kami melakukan conditional inner join berbasis batasan spasial-temporal (waktu kontekstual):
+
+```python
+join_condition = [
+    df_silver_rss["published_time"] >= df_api_sig["event_time"],
+    df_silver_rss["published_time"] <= (df_api_sig["event_time"] + expr("INTERVAL 2 HOURS"))
+]
+df_alerts = df_api_sig.join(df_silver_rss, join_condition, "inner")
+```
 
 ### 📁 Ringkasan Output Gold ETS
 
@@ -155,10 +185,12 @@ lakehouse_data/gold/
 ├── ets_top_wilayah/             (N baris: semua wilayah + count)
 ├── ets_distribusi_kedalaman/    (1 baris: dangkal, menengah, dalam, stats)
 ├── ets_statistik_ringkasan/     (1 baris: total, avg, max, min, stddev)
-└── ets_mllib_tren/              (1 baris: koefisien, RMSE, R², tren)
+├── ets_mllib_tren/              (1 baris: koefisien, RMSE, R², tren)
+├── gempa_risk_score/            <-- (N baris: indeks kerawanan kuantitatif baru)
+└── gempa_significant_alerts/    <-- (N baris: hasil Cross-Source Join API + RSS 2 jam)
 ```
 
-Selain Gold Delta, script juga meng-update `dashboard/data/spark_results.json` dengan `source: "gold_delta_ets"` agar dashboard Flask dapat menampilkan hasil analisis terbaru.
+Selain menghasilkan berkas tabel Delta, skrip 03_gold.py secara otomatis merilis file statis terintegrasi dashboard/data/spark_results.json dengan identitas tag source: "gold_delta_combined" agar dashboard Flask dapat membaca visualisasi baru tanpa kendala.
 
 ---
 
@@ -171,11 +203,16 @@ Gunakan perintah terminal PowerShell berikut untuk melihat berkas transaksi:
 ```powershell
 # Silver
 ls lakehouse/lakehouse_data/silver/gempa_api/_delta_log/
+ls lakehouse/lakehouse_data/silver/gempa_rss/_delta_log/
 
 # Gold ETS
 ls lakehouse/lakehouse_data/gold/ets_distribusi_magnitudo/_delta_log/
 ls lakehouse/lakehouse_data/gold/ets_top_wilayah/_delta_log/
 ls lakehouse/lakehouse_data/gold/ets_distribusi_kedalaman/_delta_log/
+ls lakehouse/lakehouse_data/gold/ets_statistik_ringkasan/_delta_log/
+ls lakehouse/lakehouse_data/gold/ets_mllib_tren/_delta_log/
+ls lakehouse/lakehouse_data/gold/gempa_risk_score/_delta_log/
+ls lakehouse/lakehouse_data/gold/gempa_significant_alerts/_delta_log/
 ```
 *(Anda harus melihat file `00000000000000000000.json` di setiap folder `_delta_log/` yang mencatat transaksi WRITE awal)*.
 
