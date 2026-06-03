@@ -1,11 +1,8 @@
 """
-Script: 02_silver.py
-Deskripsi: Membersihkan data Bronze Layer (API & RSS gempa) menjadi Silver Layer
-           yang siap dianalisis. Melakukan minimal 5 transformasi cleaning relevan
-           domain GempaRadar, mencatat statistik baris yang hilang, serta
-           mendemonstrasikan fitur Time Travel Delta Lake.
-Tugas: Anggota 2 (Silver + Time Travel)
-Project: GempaRadar Data Lakehouse | Kelompok 1 ETS Big Data
+Membersihkan data Bronze Layer (API & RSS gempa) menjadi Silver Layer
+yang siap dianalisis. Melakukan minimal 5 transformasi cleaning relevan
+domain GempaRadar, mencatat statistik baris yang hilang, serta
+demendemonstrasikan fitur Time Travel Delta Lake.
 
 Transformasi yang dilakukan (Silver API):
   1. dropDuplicates(["id"])          — Hapus data gempa duplikat berdasarkan ID unik USGS
@@ -26,13 +23,10 @@ Transformasi yang dilakukan (Silver RSS):
 import os
 import sys
 
-# Pindahkan CWD ke folder lakehouse/ agar path relatif bersifat portabel
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
-# ====================================================================
-# AUTO-REDIRECT KE DOCKER CONTAINER (sama dengan 01_bronze.py)
-# ====================================================================
+# AUTO-REDIRECT KE DOCKER CONTAINER
 if os.name == 'nt' and not os.environ.get('HADOOP_HOME'):
     import subprocess
     print("\n" + "="*60)
@@ -63,9 +57,7 @@ print("\n" + "="*60)
 print("  CLEANING SILVER LAYER - GEMPARADAR DATA LAKEHOUSE")
 print("="*60)
 
-# ====================================================================
 # IMPORT LIBRARY
-# ====================================================================
 try:
     # pyrefly: ignore [missing-import]
     from pyspark.sql import SparkSession
@@ -86,9 +78,7 @@ except ImportError as e:
     print(f"[-] Gagal mengimpor library: {e}")
     sys.exit(1)
 
-# ====================================================================
 # INISIALISASI SPARKSESSION
-# ====================================================================
 print("[*] Menginisialisasi SparkSession dengan ekstensi Delta Lake...")
 os.environ["HADOOP_USER_NAME"] = "hadoop"
 
@@ -117,9 +107,7 @@ except Exception as e:
     print(f"[-] Gagal menginisialisasi SparkSession: {e}")
     sys.exit(1)
 
-# ====================================================================
 # DEFINISI PATH
-# ====================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LAKEHOUSE_DATA_DIR = os.path.join(BASE_DIR, "lakehouse_data")
 
@@ -138,9 +126,7 @@ print(f"[*] Sumber Bronze RSS  : {BRONZE_RSS_PATH}")
 print(f"[*] Output Silver API  : {SILVER_API_PATH}")
 print(f"[*] Output Silver RSS  : {SILVER_RSS_PATH}")
 
-# ====================================================================
 # HELPER FUNCTION — CETAK STATISTIK BARIS
-# ====================================================================
 def print_stats(label, before, after):
     """Cetak ringkasan jumlah baris sebelum & sesudah satu tahap cleaning."""
     hilang   = before - after
@@ -148,9 +134,7 @@ def print_stats(label, before, after):
     print(f"    [{label}] {before:>5} baris → {after:>5} baris "
           f"| hilang {hilang:>4} baris ({persen:.1f}%)")
 
-# ====================================================================
-# BAGIAN 1: SILVER LAYER — DATA GEMPA API (USGS)
-# ====================================================================
+# SILVER LAYER — DATA GEMPA API (USGS)
 print("\n" + "="*50)
 print("  BAGIAN 1: SILVER API (USGS Earthquake Data)")
 print("="*50)
@@ -165,42 +149,30 @@ try:
     print("\n--- SKEMA BRONZE API ---")
     bronze_api.printSchema()
 
-    # ----------------------------------------------------------------
-    # STATISTIK per tahap — dicatat untuk README
-    # ----------------------------------------------------------------
+    # STATISTIK per tahap
     stats_api = {"raw": total_raw_api}
 
     # Transformasi 1: Hapus Duplikat berdasarkan ID gempa (ID USGS bersifat unik)
-    # ALASAN: Data bisa diingest lebih dari sekali ke Bronze (mode=append).
-    #         Duplikat ID menyebabkan analisis count, magnitude rata-rata, dll. bias.
     step1 = bronze_api.dropDuplicates(["id"])
     stats_api["after_dedup"] = step1.count()
     print_stats("1-DeduplicateID", stats_api["raw"], stats_api["after_dedup"])
 
     # Transformasi 2: Filter magnitude tidak valid (magnitude < 0)
-    # ALASAN: Magnitude negatif tidak memiliki arti fisik dalam skala Richter/Moment.
-    #         Nilainya bisa muncul akibat kesalahan sensor atau data placeholder.
     step2 = step1.filter(col("magnitude") >= 0)
     stats_api["after_mag_filter"] = step2.count()
     print_stats("2-FilterMagnitude<0", stats_api["after_dedup"], stats_api["after_mag_filter"])
 
     # Transformasi 3: Filter kedalaman tidak valid (depth_km <= 0)
-    # ALASAN: Kedalaman gempa harus bernilai positif (di bawah permukaan bumi).
-    #         Nilai 0 atau negatif menandakan data tidak lengkap/error.
     step3 = step2.filter(col("depth_km") > 0)
     stats_api["after_depth_filter"] = step3.count()
     print_stats("3-FilterDepth<=0", stats_api["after_mag_filter"], stats_api["after_depth_filter"])
 
     # Transformasi 4: Filter baris tanpa lokasi (place IS NOT NULL)
-    # ALASAN: Kolom 'place' adalah keterangan wilayah terdampak — data tanpa lokasi
-    #         tidak berguna untuk analisis persebaran gempa per wilayah.
     step4 = step3.filter(col("place").isNotNull())
     stats_api["after_null_place"] = step4.count()
     print_stats("4-FilterNullPlace", stats_api["after_depth_filter"], stats_api["after_null_place"])
 
     # Transformasi 5: Cast event_time dari String ISO → TimestampType
-    # ALASAN: Bronze menyimpan timestamp sebagai string.
-    #         Tanpa cast, operasi time-series (groupBy jam/hari, window function) tidak bisa jalan.
     step5 = step4 \
         .withColumn("event_time",  to_timestamp(col("event_time"))) \
         .withColumn("_ingested_at", to_timestamp(col("_ingested_at")))
@@ -208,8 +180,6 @@ try:
     print_stats("5-CastTimestamp", stats_api["after_null_place"], stats_api["after_cast"])
 
     # Transformasi 6: Ekstrak kolom turunan — jam kejadian & tanggal kejadian
-    # ALASAN: Kolom turunan jam & tanggal memudahkan analisis pola temporal gempa
-    #         (misalnya: jam berapa paling sering terjadi gempa? trend per hari?).
     silver_api = step5 \
         .withColumn("jam_kejadian",     hour(col("event_time"))) \
         .withColumn("tanggal_kejadian", to_date(col("event_time"))) \
@@ -257,9 +227,7 @@ except Exception as e:
     traceback.print_exc()
 
 
-# ====================================================================
-# BAGIAN 2: SILVER LAYER — DATA BERITA RSS
-# ====================================================================
+# SILVER LAYER — DATA BERITA RSS
 print("\n" + "="*50)
 print("  BAGIAN 2: SILVER RSS (Google News Earthquake Feed)")
 print("="*50)
@@ -274,15 +242,11 @@ try:
     stats_rss = {"raw": total_raw_rss}
 
     # Transformasi 1: Hapus Duplikat berdasarkan ID berita (hash artikel)
-    # ALASAN: RSS feed bisa menghasilkan artikel sama dari beberapa ingestion.
-    #         Duplikat artikel menyebabkan bias pada frekuensi pemberitaan gempa.
     rss_step1 = bronze_rss.dropDuplicates(["id"])
     stats_rss["after_dedup"] = rss_step1.count()
     print_stats("1-DeduplicateID", stats_rss["raw"], stats_rss["after_dedup"])
 
     # Transformasi 2: Filter berita tanpa judul (title IS NOT NULL dan tidak kosong)
-    # ALASAN: Artikel tanpa judul tidak memiliki nilai informasi dan
-    #         tidak dapat dianalisis untuk ekstraksi kata kunci gempa.
     rss_step2 = rss_step1.filter(
         col("title").isNotNull() & (trim(col("title")) != "")
     )
@@ -290,8 +254,6 @@ try:
     print_stats("2-FilterNullTitle", stats_rss["after_dedup"], stats_rss["after_title_filter"])
 
     # Transformasi 3: Cast published_time String ISO → TimestampType
-    # ALASAN: Sama seperti API, timestamp harus bertipe Timestamp agar bisa
-    #         digunakan dalam analisis tren waktu publikasi berita.
     rss_step3 = rss_step2 \
         .withColumn("published_time", to_timestamp(col("published_time"))) \
         .withColumn("timestamp",      to_timestamp(col("timestamp")))
@@ -299,8 +261,6 @@ try:
     print_stats("3-CastTimestamp", stats_rss["after_title_filter"], stats_rss["after_cast"])
 
     # Transformasi 4: Bersihkan HTML tag dari kolom summary
-    # ALASAN: Kolom summary mengandung tag HTML (<a href...>, <font color...>).
-    #         HTML tag mengotori teks dan menghambat NLP / analisis sentimen berita gempa.
     HTML_PATTERN = r"<[^>]+>"
     rss_step4 = rss_step3 \
         .withColumn("summary_clean", regexp_replace(col("summary"), HTML_PATTERN, "")) \
@@ -309,8 +269,6 @@ try:
     print_stats("4-CleanHTMLSummary", stats_rss["after_cast"], stats_rss["after_clean_html"])
 
     # Transformasi 5: Ekstrak tanggal terbit
-    # ALASAN: Kolom tanggal terbit memudahkan agregasi berita per hari/minggu
-    #         untuk analisis volume pemberitaan gempa seiring waktu.
     silver_rss = rss_step4 \
         .withColumn("tanggal_terbit", to_date(col("published_time"))) \
         .withColumn("_silver_processed_at", current_timestamp()) \
@@ -355,11 +313,9 @@ except Exception as e:
     traceback.print_exc()
 
 
-# ====================================================================
-# BAGIAN 3: DEMONSTRASI TIME TRAVEL DELTA LAKE (WAJIB)
-# ====================================================================
+# DEMONSTRASI TIME TRAVEL DELTA LAKE 
 print("\n" + "="*60)
-print("  BAGIAN 3: DEMONSTRASI TIME TRAVEL — DELTA LAKE")
+print("  DEMONSTRASI TIME TRAVEL — DELTA LAKE")
 print("="*60)
 print("""
 [INFO] Time Travel adalah fitur Delta Lake yang mencatat setiap perubahan
@@ -371,11 +327,9 @@ try:
     # pyrefly: ignore [missing-import]
     from delta.tables import DeltaTable
 
-    # ------------------------------------------------------------------
     # Langkah A: Buat UPDATE untuk membuat Version 1
-    # Kita akan mengubah nilai mag_category pada beberapa baris
+    # mengubah nilai mag_category pada beberapa baris
     # sebagai simulasi "koreksi label" yang terjadi setelah ingestion.
-    # ------------------------------------------------------------------
     print("[*] Langkah A: Membuat Version 1 (UPDATE mag_category pada magnitude >= 5.0)")
     print("    Simulasi: tim analis mengoreksi label 'kuat' → 'sangat_kuat' untuk M≥5.0")
 
@@ -395,9 +349,7 @@ try:
         .count()
     print(f"[+] Version 1 dibuat. Baris dengan mag_category='sangat_kuat': {ver1_count}")
 
-    # ------------------------------------------------------------------
     # Langkah B: Baca data Version 0 (sebelum update) vs Version 1 (sesudah)
-    # ------------------------------------------------------------------
     print("\n[*] Langkah B: Membandingkan Version 0 vs Version 1")
 
     df_v0 = spark.read.format("delta") \
@@ -414,9 +366,7 @@ try:
     print("  [VERSION 1] — Data sesudah update (distribusi mag_category):")
     df_v1.groupBy("mag_category").count().orderBy("mag_category").show()
 
-    # ------------------------------------------------------------------
     # Langkah C: Baca berdasarkan Timestamp
-    # ------------------------------------------------------------------
     print("[*] Langkah C: Demo membaca data 'versionAsOf' dan 'timestampAsOf'")
 
     # Tampilkan history lengkap tabel Delta
@@ -439,9 +389,7 @@ try:
             .load(SILVER_API_PATH)
         print(f"  [+] Jumlah baris saat dibaca via timestamp: {df_v0_ts.count()}")
 
-    # ------------------------------------------------------------------
-    # Langkah D: RESTORE ke Version 0 (opsional demo)
-    # ------------------------------------------------------------------
+    # Langkah D: RESTORE ke Version 0
     print("\n[*] Langkah D: Simulasi RESTORE ke Version 0")
     print("    (Mengembalikan data ke kondisi sebelum update mag_category)")
     delta_api.restoreToVersion(0)
@@ -467,9 +415,7 @@ except Exception as e:
     print("[!] Catatan: Time Travel memerlukan delta-spark terinstall dengan benar di JVM.")
 
 
-# ====================================================================
 # VERIFIKASI AKHIR
-# ====================================================================
 print("\n" + "="*50)
 print("  VERIFIKASI SILVER LAYER")
 print("="*50)
@@ -496,9 +442,7 @@ except Exception as e:
     print(f"[-] Verifikasi Silver RSS gagal: {e}")
 
 
-# ====================================================================
 # TUTUP SPARK SESSION
-# ====================================================================
 print("\n[*] Menutup SparkSession...")
 spark.stop()
 
