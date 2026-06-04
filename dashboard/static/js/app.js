@@ -195,9 +195,10 @@ function initGlobeMap() {
         mapGlobe.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
         mapGlobe.setConfigProperty('basemap', 'showTransitLabels', false);
       } catch(e) { console.warn('Globe style config error:', e); }
-      // Render markers (allGempa may already be populated by fetchAndRender)
+      // Render markers — filter ke region Indonesia saja
       if (allGempa.length > 0) {
-        try { renderMapboxMarkers(mapGlobe, allGempa, 'globe-count'); } catch(e) { console.warn('Globe markers error:', e); }
+        const regional = allGempa.filter(isInIndonesiaRegion);
+        try { renderMapboxMarkers(mapGlobe, regional, 'globe-count'); } catch(e) { console.warn('Globe markers error:', e); }
       }
     });
   } catch(e) {
@@ -226,7 +227,8 @@ function initMap3D() {
     map3d.on('style.load', () => {
       try {
         map3d.setConfigProperty('basemap', 'lightPreset', isLight ? 'day' : 'night');
-        if (allGempa.length > 0) renderMapboxMarkers(map3d, allGempa, 'map3d-count');
+        // Filter ke region Indonesia saja
+        if (allGempa.length > 0) renderMapboxMarkers(map3d, allGempa.filter(isInIndonesiaRegion), 'map3d-count');
       } catch(e) { console.warn('Map3D style.load error:', e); }
     });
     map3dInitialized = true;
@@ -258,14 +260,25 @@ document.querySelectorAll('.map-tab').forEach(tab => {
   });
 });
 
+// ── Bounding Box Filter (Indonesia region) ──
+// Pastikan hanya titik dalam wilayah Indonesia & sekitarnya yang dirender
+function isInIndonesiaRegion(g) {
+  const lat = g.latitude, lon = g.longitude;
+  if (lat == null || lon == null) return false;
+  // Extended bounding box: lat -15 s/d 10, lon 90 s/d 145
+  return lat >= -15 && lat <= 10 && lon >= 90 && lon <= 145;
+}
+
 function filterByTab(list, tab) {
+  // Filter ke region Indonesia terlebih dahulu
+  const regional = list.filter(isInIndonesiaRegion);
   switch (tab) {
-    case 'terkini': return [...list].sort((a,b) => (b.event_time||'').localeCompare(a.event_time||'')).slice(0, 1);
-    case 'm5': return list.filter(g => (g.magnitude||0) >= 5.0);
-    case 'dirasakan': return list.filter(g => (g.felt||0) > 0 || (g.sig||0) >= 400 || ((g.magnitude||0) >= 4.5 && (g.depth_km||999) <= 60));
-    case 'tsunami': return list.filter(g => isTsunami(g));
-    case 'realtime': return list;
-    default: return list;
+    case 'terkini': return [...regional].sort((a,b) => (b.event_time||'').localeCompare(a.event_time||'')).slice(0, 20);
+    case 'm5': return regional.filter(g => (g.magnitude||0) >= 5.0);
+    case 'dirasakan': return regional.filter(g => (g.felt||0) > 0 || (g.sig||0) >= 400 || ((g.magnitude||0) >= 4.5 && (g.depth_km||999) <= 60));
+    case 'tsunami': return regional.filter(g => isTsunami(g));
+    case 'realtime': return regional;
+    default: return regional;
   }
 }
 
@@ -527,27 +540,34 @@ function renderMapboxMarkers(mapInstance, list, countId) {
     return;
   }
   const countEl = document.getElementById(countId);
-  if (countEl) countEl.textContent = list.length + ' titik';
-  
-  // Remove existing markers specific to this map
-  const existingMarkers = mapInstance.getContainer().querySelectorAll('.mapbox-marker');
-  existingMarkers.forEach(el => el.remove());
+
+  // Remove existing markers specific to this map properly to clean up internal Mapbox listeners
+  if (mapInstance._customMarkers) {
+    mapInstance._customMarkers.forEach(m => m.remove());
+  }
+  mapInstance._customMarkers = [];
 
   const isGlobe = mapInstance.getContainer().id === 'map-globe';
-
   const now = Date.now(), H24 = 86400000;
 
-  list.forEach(g => {
-    if (!g.latitude || !g.longitude) return;
-    const m=g.magnitude||0, cl=magColor(m), r=magR(m);
+  // Safeguard: hanya tampilkan gempa dalam bounding box Indonesia & sekitarnya
+  const safeList = list.filter(g => {
+    if (g.latitude == null || g.longitude == null) return false;
+    return g.latitude >= -15 && g.latitude <= 10 && g.longitude >= 90 && g.longitude <= 145;
+  });
+
+  if (countEl) countEl.textContent = safeList.length + ' titik';
+
+  safeList.forEach(g => {
+    const m = g.magnitude || 0, cl = magColor(m), r = magR(m);
     const eventMs = g.event_time ? new Date(g.event_time).getTime() : 0;
     const isRecent = eventMs > 0 && (now - eventMs) < H24;
 
     // Create a DOM element for each marker
     const el = document.createElement('div');
     el.className = 'mapbox-marker' + (isRecent ? ' mapbox-marker-pulse' : '');
-    el.style.width = (r*2) + 'px';
-    el.style.height = (r*2) + 'px';
+    el.style.width = (r * 2) + 'px';
+    el.style.height = (r * 2) + 'px';
     el.style.borderRadius = '50%';
     el.style.background = cl;
     el.style.opacity = isRecent ? '1' : '0.8';
@@ -557,8 +577,8 @@ function renderMapboxMarkers(mapInstance, list, countId) {
     el.style.justifyContent = 'center';
     el.style.cursor = 'pointer';
     el.style.zIndex = isRecent ? '10' : '1';
-    el.innerHTML = `<span style="color:#fff;font-size:${Math.max(7,r*0.85)}px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8)">${m.toFixed(1)}</span>`;
-    
+    el.innerHTML = `<span style="color:#fff;font-size:${Math.max(7, r * 0.85)}px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8)">${m.toFixed(1)}</span>`;
+
     if (isRecent) {
       const ring = document.createElement('div');
       ring.className = 'mapbox-marker-pulse-ring';
@@ -581,8 +601,11 @@ function renderMapboxMarkers(mapInstance, list, countId) {
       if (mapInstance.getContainer().id === 'map3d') sidebarSelect3D(g, (g.id || (g.place + g.event_time)) + '-3d');
     });
 
-    // Add marker to map
-    new mapboxgl.Marker(el).setLngLat([g.longitude, g.latitude]).addTo(mapInstance);
+    // Add marker to map with explicit center anchor
+    const marker = new mapboxgl.Marker(el, { anchor: 'center' })
+      .setLngLat([g.longitude, g.latitude])
+      .addTo(mapInstance);
+    mapInstance._customMarkers.push(marker);
   });
 }
 
@@ -934,11 +957,13 @@ async function fetchAndRender(options = {}) {
     try { renderSystemStatus(data, spark); } catch(e) { console.warn('renderSystemStatus error:', e); }
 
     // Render Mapbox maps (non-critical — don't break connectivity status)
-    try { if (mapGlobe) renderMapboxMarkers(mapGlobe, allGempa, 'globe-count'); } catch(e) { console.warn('Globe render error:', e); }
+    // Filter ke region Indonesia sebelum render ke globe & 3D map
+    const gempaRegional = allGempa.filter(isInIndonesiaRegion);
+    try { if (mapGlobe) renderMapboxMarkers(mapGlobe, gempaRegional, 'globe-count'); } catch(e) { console.warn('Globe render error:', e); }
     try { 
       if (map3dInitialized && map3d) {
-        renderMapboxMarkers(map3d, allGempa, 'map3d-count');
-        renderMap3DSidebar(allGempa);
+        renderMapboxMarkers(map3d, gempaRegional, 'map3d-count');
+        renderMap3DSidebar(gempaRegional);
       }
     } catch(e) { console.warn('Map3D render error:', e); }
   } catch(e) {

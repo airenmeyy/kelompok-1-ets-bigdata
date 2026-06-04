@@ -606,7 +606,7 @@ body.light-mode .map-sidebar-3d {
 
 /* ── Mapbox Pulsating Marker ── */
 .mapbox-marker {
-  position: relative;
+  position: absolute !important;
   pointer-events: auto;
 }
 .mapbox-marker-pulse {
