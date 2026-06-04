@@ -43,28 +43,34 @@
                     (Python hdfs library)
                               │
                               ▼
-              ╔═══════════════════════════╗
-              ║       HADOOP HDFS         ║
-              ║  /data/gempa/api/*.json   ║
-              ║  /data/gempa/rss/*.json   ║
-              ╚═══════════╤═══════════════╝
-                          │
-                          ▼
-               spark_processing.py
-               (Batch Analysis + MLlib)
-               [otomatis via spark_runner.py]
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-   /data/gempa/hasil/      spark_results.json
-   (HDFS output)           (Dashboard input)
-                                      │
-                                      ▼
-                          dashboard/app.py (Flask)
-                          + Live USGS refresh (tiap 5 mnt)
-                                      │
-                                      ▼
-                            localhost:5000
+               ╔═══════════════════════════╗
+               ║       HADOOP HDFS         ║
+               ║  /data/gempa/api/*.json   ║
+               ║  /data/gempa/rss/*.json   ║
+               ╚═══════════╤═══════════════╝
+                           │
+                           ▼
+          ╔═════════════════════════════════════╗
+          ║     DATA LAKEHOUSE PIPELINE         ║
+          ║ 1. lakehouse/01_bronze.py           ║
+          ║ 2. lakehouse/02_silver.py           ║
+          ║ 3. lakehouse/03_gold.py             ║
+          ║                                     ║
+          ║ (Data disimpan sbg Delta Tables di  ║
+          ║  /data/lakehouse/bronze|silver|gold ║
+          ║  di dalam HDFS cluster)             ║
+          ╚════════════════╤════════════════════╝
+                           │
+                           ▼
+               spark_results.json (lokal)
+               (Dashboard input)
+                           │
+                           ▼
+               dashboard/app.py (Flask)
+               + Live USGS refresh (tiap 5 mnt)
+                           │
+                           ▼
+                     localhost:5000
 ```
 
 ---
@@ -304,7 +310,21 @@ Hasil disimpan ke `dashboard/data/spark_results.json`.
 
 ---
 
-### Terminal 5 — Flask Dashboard
+### Terminal 5 — Data Lakehouse Pipeline (Bronze → Silver → Gold)
+
+```sh
+.\run_lakehouse.ps1
+```
+
+Script PowerShell ini akan menjalankan pipeline Data Lakehouse secara berurutan dan otomatis setiap 60 detik. Pipeline ini akan:
+1. Menarik data JSON dari HDFS ke Delta Table **Bronze** (`01_bronze.py`).
+2. Melakukan *data cleansing* dan demonstrasi *Time Travel* lalu menyimpannya ke Delta Table **Silver** (`02_silver.py`).
+3. Melakukan perhitungan analitik (Distribusi Magnitudo, Top Wilayah, Prediksi MLlib, Skor Risiko, dan Berita Signifikan) lalu menyimpannya ke Delta Table **Gold** (`03_gold.py`).
+*Semua Delta Table kini tersimpan secara best practice di dalam Hadoop HDFS (`/data/lakehouse/...`).*
+
+---
+
+### Terminal 6 — Flask Dashboard
 
 ```sh
 python dashboard/app.py
@@ -316,9 +336,10 @@ Dashboard tersedia di **http://localhost:5000**. Flask menjalankan background th
 
 Fitur dashboard terbaru:
 - Kartu **Status Data** untuk melihat sumber data, event terbaru, sync server, dan Spark batch terakhir
+- Analitik Risiko Wilayah dan Gempa Signifikan hasil kalkulasi Gold Layer Lakehouse
 - Tombol refresh manual di header tanpa menambah timer auto-refresh baru
 - Auto-refresh frontend setiap 30 detik dan background USGS/RSS refresh setiap 5 menit
-- Marker Mapbox globe/3D tetap interaktif walaupun sedang memakai efek pulse
+- Marker Mapbox globe/3D dengan titik tumpu (anchor) yang presisi di Indonesia
 
 ---
 
@@ -453,19 +474,19 @@ kelompok-1-ets-bigdata/
 │   ├── overview_hdfs.png
 │   ├── browse_directory_hdfs.png
 │   └── browse_directory_hdfs_data.png
+├── run_lakehouse.ps1            ← Script otomatis jalan pipeline Lakehouse (Bronze->Silver->Gold)
 ├── kafka/
 │   ├── producer_api.py        ← Aras Rizky Ananta
 │   ├── producer_rss.py        ← Ica Zika Hamizah
 │   ├── consumer_to_hdfs.py    ← Ica Zika Hamizah
 │   ├── spark_processing.py    ← Arya Bisma Putra Refman
 │   └── spark_runner.py        ← Otomatisasi Spark (setiap 10 menit)
-├── lakehouse/                     ← Data Lakehouse Pipeline (Bronze → Silver → Gold)
+├── lakehouse/                 ← Data Lakehouse Pipeline (Bronze → Silver → Gold)
 │   ├── 00_setup.md            ← Panduan setup & cara menjalankan
-│   ├── 01_bronze.py           ← Anggota 1: Ingestion ke Bronze Delta
-│   ├── 02_silver.py           ← Anggota 2: Cleaning + Time Travel
-│   ├── 03_gold_ets.py         ← Anggota 3: Reproduksi Analisis ETS ke Gold Delta
-│   ├── README_lakehouse.md    ← Dokumentasi teknis Silver & Gold Layer
-│   └── lakehouse_data/        ← Output Delta tables (bronze/, silver/, gold/)
+│   ├── 01_bronze.py           ← Anggota 1: Ingestion ke Bronze Delta (di HDFS)
+│   ├── 02_silver.py           ← Anggota 2: Cleaning + Time Travel (di HDFS)
+│   ├── 03_gold.py             ← Anggota 3 & 4: Analisis ETS & Enhancement (di HDFS)
+│   └── README_lakehouse.md    ← Dokumentasi teknis Silver & Gold Layer
 └── dashboard/
     ├── app.py                 ← M. Hikari Reiziq Rakhmadinta
     ├── templates/

@@ -108,18 +108,12 @@ except Exception as e:
     sys.exit(1)
 
 # DEFINISI PATH
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LAKEHOUSE_DATA_DIR = os.path.join(BASE_DIR, "lakehouse_data")
+HDFS_LAKEHOUSE_BASE = "hdfs://hadoop-namenode:8020/data/lakehouse"
 
-def local_path(relative):
-    """Konversi path relatif lakehouse_data/ ke URI file:// Spark."""
-    abs_path = os.path.join(LAKEHOUSE_DATA_DIR, relative)
-    return f"file://{abs_path.replace(os.sep, '/')}"
-
-BRONZE_API_PATH  = local_path("bronze/gempa_api")
-BRONZE_RSS_PATH  = local_path("bronze/gempa_rss")
-SILVER_API_PATH  = local_path("silver/gempa_api")
-SILVER_RSS_PATH  = local_path("silver/gempa_rss")
+BRONZE_API_PATH  = f"{HDFS_LAKEHOUSE_BASE}/bronze/gempa_api"
+BRONZE_RSS_PATH  = f"{HDFS_LAKEHOUSE_BASE}/bronze/gempa_rss"
+SILVER_API_PATH  = f"{HDFS_LAKEHOUSE_BASE}/silver/gempa_api"
+SILVER_RSS_PATH  = f"{HDFS_LAKEHOUSE_BASE}/silver/gempa_rss"
 
 print(f"\n[*] Sumber Bronze API  : {BRONZE_API_PATH}")
 print(f"[*] Sumber Bronze RSS  : {BRONZE_RSS_PATH}")
@@ -210,14 +204,6 @@ try:
 
     # --- Simpan ke Silver Delta (Version 0) ---
     print(f"\n[*] Menulis Silver API ke Delta table (Version 0)...")
-    # Bersihkan folder jika ada agar version log reset ke 0 untuk demo reproduktif
-    import shutil
-    clean_path = SILVER_API_PATH.replace("file://", "")
-    if os.path.exists(clean_path):
-        try:
-            shutil.rmtree(clean_path)
-        except Exception:
-            pass
     silver_api.write.format("delta").mode("overwrite").save(SILVER_API_PATH)
     print(f"[+] Silver API tersimpan: {SILVER_API_PATH}")
 
@@ -296,14 +282,6 @@ try:
 
     # --- Simpan ke Silver Delta (Version 0) ---
     print(f"\n[*] Menulis Silver RSS ke Delta table (Version 0)...")
-    # Bersihkan folder jika ada agar version log reset ke 0 untuk demo reproduktif
-    import shutil
-    clean_path_rss = SILVER_RSS_PATH.replace("file://", "")
-    if os.path.exists(clean_path_rss):
-        try:
-            shutil.rmtree(clean_path_rss)
-        except Exception:
-            pass
     silver_rss.write.format("delta").mode("overwrite").save(SILVER_RSS_PATH)
     print(f"[+] Silver RSS tersimpan: {SILVER_RSS_PATH}")
 

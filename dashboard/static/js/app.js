@@ -93,10 +93,13 @@ let mapGlobe = null;
 let map3d = null;
 let map3dInitialized = false;
 let allGempa = [];
-let activeTab = 'terkini';
+let activeTab = 'dashboard';
 let lastDataIds = new Set();
 let refreshTimer = null;
 let isFetching = false;
+let countdownTimer = null;
+let nextFetchTime = 0;
+let updateHistory = [];
 const REFRESH_INTERVAL_MS = 30000;
 const manualRefreshBtn = document.getElementById('manual-refresh');
 
@@ -104,7 +107,22 @@ manualRefreshBtn?.addEventListener('click', () => fetchAndRender({ manual: true 
 
 function scheduleNextFetch() {
   if (refreshTimer) clearTimeout(refreshTimer);
+  if (countdownTimer) clearInterval(countdownTimer);
+  
+  nextFetchTime = Date.now() + REFRESH_INTERVAL_MS;
   refreshTimer = setTimeout(() => fetchAndRender(), REFRESH_INTERVAL_MS);
+  
+  const cdEl = document.getElementById('countdown');
+  countdownTimer = setInterval(() => {
+    const diff = Math.max(0, nextFetchTime - Date.now());
+    if (diff <= 0) {
+      if (cdEl) cdEl.textContent = 'Updating...';
+      clearInterval(countdownTimer);
+    } else {
+      const sec = Math.ceil(diff / 1000);
+      if (cdEl) cdEl.textContent = `Update: ${sec}s`;
+    }
+  }, 1000);
 }
 
 // Audio context for alert
@@ -722,6 +740,48 @@ function renderWilayah(list) {
     <div class="wcnt">${w.count}×</div></div>`).join('');
 }
 
+// ── Render Risk Score ──
+window.renderRiskScoreHTML = function(list, isFullscreen = false) {
+  if (!list||!list.length) return '<div class="loading">Belum ada data</div>';
+  const mx = list[0].risk_score || 1;
+  const limit = isFullscreen ? list.length : 3;
+  return list.slice(0,limit).map((w,i) => `<div class="witem" ${isFullscreen ? 'style="padding:12px; margin-bottom:8px;"' : ''}>
+    <div class="wrank" style="color:#f97316; font-size:${isFullscreen?'1rem':'0.7rem'}">${i+1}</div>
+    <div class="wbar-wrap">
+      <div class="wname" title="${w.wilayah}" style="font-size:${isFullscreen?'1rem':'0.8rem'}; margin-bottom:${isFullscreen?'8px':'4px'}">${w.wilayah||'—'}</div>
+      <div class="wbar" style="height:${isFullscreen?'8px':'4px'}; width:${Math.round((w.risk_score/mx)*100)}%; background: linear-gradient(90deg, rgba(239, 68, 68, 0.4), rgba(239, 68, 68, 0.9));"></div>
+    </div>
+    <div class="wcnt" style="color:#ef4444; font-size:${isFullscreen?'1rem':'0.75rem'}">${(w.risk_score||0).toFixed(1)}</div>
+  </div>`).join('');
+}
+
+function renderRiskScore(list) {
+  const el = document.getElementById('risk-score-list');
+  if (!el) return;
+  el.innerHTML = renderRiskScoreHTML(list, false);
+}
+
+// ── Render Significant Alerts ──
+window.renderSignificantAlertsHTML = function(list, isFullscreen = false) {
+  if (!list||!list.length) return '<div class="loading">Belum ada peringatan korelasi berita.</div>';
+  const limit = isFullscreen ? list.length : 2;
+  return list.slice(0,limit).map(a => `
+    <div style="background:rgba(255,255,255,0.05); padding:${isFullscreen?'12px 16px':'6px 8px'}; border-radius:6px; margin-bottom:6px; border-left:3px solid #f97316;">
+      <div style="font-size:${isFullscreen?'0.9rem':'0.7rem'}; font-weight:600; color:#e2e8f0; margin-bottom:4px; line-height:1.4;">${a.judul_berita}</div>
+      <div style="font-size:${isFullscreen?'0.8rem':'0.6rem'}; color:rgba(255,255,255,0.5); display:flex; justify-content:space-between;">
+        <span>${a.wilayah} (M${a.magnitude})</span>
+        <span>${a.waktu_gempa ? new Date(a.waktu_gempa).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : ''}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSignificantAlerts(list) {
+  const el = document.getElementById('significant-alerts-list');
+  if (!el) return;
+  el.innerHTML = renderSignificantAlertsHTML(list, false);
+}
+
 // ── Render Berita ──
 const GRAD = [['#0d1b2a','#1b4a7a'],['#1a0808','#5a1515'],['#0a1a0e','#1a5a28'],['#1a1400','#5a4000'],['#150a1a','#3a186a'],['#0a0e16','#1a3060']];
 function renderBerita(list) {
@@ -955,6 +1015,32 @@ async function fetchAndRender(options = {}) {
     try { if (spark.top_wilayah) renderWilayah(spark.top_wilayah); } catch(e) { console.warn('renderWilayah error:', e); }
     try { if (spark.mllib) updateMllib(spark.mllib); } catch(e) { console.warn('updateMllib error:', e); }
     try { renderSystemStatus(data, spark); } catch(e) { console.warn('renderSystemStatus error:', e); }
+    
+    window.latestSpark = spark;
+    
+    try { if (spark.risk_score) renderRiskScore(spark.risk_score); } catch(e) { console.warn('renderRiskScore error:', e); }
+    try { if (spark.significant_alerts) renderSignificantAlerts(spark.significant_alerts); } catch(e) { console.warn('renderSignificantAlerts error:', e); }
+
+    // Update History Log
+    const now = new Date();
+    
+    if (window.lastLakehouseUpdate === spark.last_updated) {
+      updateHistory.unshift({
+        time: now,
+        msg: `[SKIP] Cek Lakehouse: Data masih sama (belum ada update baru dari pipeline).`
+      });
+    } else {
+      window.lastLakehouseUpdate = spark.last_updated;
+      const risk = spark.risk_score && spark.risk_score.length > 0 ? spark.risk_score[0].wilayah : 'N/A';
+      const alerts = spark.significant_alerts ? spark.significant_alerts.length : 0;
+      updateHistory.unshift({
+        time: now,
+        msg: `[LAKEHOUSE SYNC] ${spark.total_gempa || 0} Gempa | Area Aktif: ${spark.wilayah_teraktif || 'N/A'} | Risiko Tertinggi: ${risk} | Alert Korelasi: ${alerts}`
+      });
+    }
+    
+    if (updateHistory.length > 50) updateHistory.pop();
+    renderHistory();
 
     // Render Mapbox maps (non-critical — don't break connectivity status)
     // Filter ke region Indonesia sebelum render ke globe & 3D map
@@ -974,6 +1060,18 @@ async function fetchAndRender(options = {}) {
     if (manualRefreshBtn) manualRefreshBtn.classList.remove('loading');
     scheduleNextFetch();
   }
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!el) return;
+  if (!updateHistory.length) { el.innerHTML = '<div class="loading">Belum ada histori update.</div>'; return; }
+  el.innerHTML = updateHistory.map(h => `
+    <div style="background:var(--surface2); padding:10px; border-radius:6px; border-left:3px solid var(--text);">
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">${h.time.toLocaleString('id-ID')}</div>
+      <div style="font-size:0.85rem; color:var(--text);">${h.msg}</div>
+    </div>
+  `).join('');
 }
 
 fetchAndRender();

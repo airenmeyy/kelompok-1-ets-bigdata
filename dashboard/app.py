@@ -15,6 +15,7 @@ CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+LAKEHOUSE_GOLD_DIR = os.path.join(os.path.dirname(BASE_DIR), "lakehouse", "lakehouse_data", "gold")
 
 # ── USGS direct-fetch background refresh ─────────────────────────────────
 # Memastikan live_api.json selalu ter-update langsung dari USGS setiap 5 menit
@@ -206,6 +207,14 @@ def read_json(filename):
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
+def read_json_lakehouse(filename):
+    path = os.path.join(LAKEHOUSE_GOLD_DIR, filename)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
 
 def compute_stats_from_api(api_data):
     """Hitung statistik dari live_api.json sebagai fallback jika spark_results.json belum ada."""
@@ -271,19 +280,21 @@ def index():
 def api_data():
     api_data_raw = read_json("live_api.json") or []
     rss_data = read_json("live_rss.json") or []
-    spark_results = read_json("spark_results.json")
+    
+    # Baca dari lakehouse/lakehouse_data/gold/spark_results.json
+    spark_results = read_json_lakehouse("spark_results.json")
 
-    # Selalu hitung ulang dari live data agar statistik selalu fresh
-    live_stats = compute_stats_from_api(api_data_raw)
-    if live_stats:
-        # Preserve mllib results from spark_results.json (only available after Spark batch run)
-        if spark_results and spark_results.get("mllib"):
-            live_stats["mllib"] = spark_results["mllib"]
-            live_stats["spark_last_updated"] = spark_results.get("last_updated")
-        spark_results = live_stats
-        spark_results["note"] = "Data dihitung dari live USGS feed (auto-refresh setiap 5 menit)"
-    elif not spark_results or spark_results.get("total_gempa", 0) == 0:
-        spark_results = {"note": "Belum ada data"}
+    # Jika spark_results tidak ada, fallback ke perhitungan on-the-fly dari live data
+    if not spark_results or spark_results.get("total_gempa", 0) == 0:
+        live_stats = compute_stats_from_api(api_data_raw)
+        if live_stats:
+            spark_results = live_stats
+            spark_results["note"] = "Fallback: Data dihitung on-the-fly dari live USGS feed (Lakehouse belum siap)"
+        else:
+            spark_results = {"note": "Belum ada data"}
+    else:
+        # Jika ada data Spark, kita jadikan sebagai Source of Truth utama
+        spark_results["note"] = "Data analitik berasal dari hasil batch Apache Spark (Gold Layer Lakehouse)"
 
     # Sort gempa: terbaru dulu, return all for tab filtering on frontend
     api_data_sorted = sorted(api_data_raw, key=lambda x: x.get("event_time", ""), reverse=True)

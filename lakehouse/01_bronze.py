@@ -59,11 +59,14 @@ print("="*60)
 
 # Import PySpark & Delta Lake
 try:
+    # pyrefly: ignore [missing-import]
     from pyspark.sql import SparkSession
+    # pyrefly: ignore [missing-import]
     from pyspark.sql.functions import current_timestamp, lit
     
     # Coba import delta-spark, tangkap eror modul apa pun (termasuk importlib_metadata)
     try:
+        # pyrefly: ignore [missing-import]
         from delta import configure_spark_with_delta_pip
         HAS_DELTA_PACKAGE = True
     except Exception:
@@ -109,11 +112,10 @@ except Exception as e:
 HDFS_API_PATH = "hdfs://hadoop-namenode:8020/data/gempa/api/"
 HDFS_RSS_PATH = "hdfs://hadoop-namenode:8020/data/gempa/rss/"
 
-# Path output (Memaksa simpan ke lokal dengan prefix 'file://')
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LAKEHOUSE_DATA_DIR = os.path.join(BASE_DIR, "lakehouse_data")
-BRONZE_API_PATH = f"file://{os.path.join(LAKEHOUSE_DATA_DIR, 'bronze', 'gempa_api').replace(os.sep, '/')}"
-BRONZE_RSS_PATH = f"file://{os.path.join(LAKEHOUSE_DATA_DIR, 'bronze', 'gempa_rss').replace(os.sep, '/')}"
+# Path output (Menyimpan ke HDFS sesuai best practice Lakehouse)
+HDFS_LAKEHOUSE_BASE = "hdfs://hadoop-namenode:8020/data/lakehouse"
+BRONZE_API_PATH = f"{HDFS_LAKEHOUSE_BASE}/bronze/gempa_api"
+BRONZE_RSS_PATH = f"{HDFS_LAKEHOUSE_BASE}/bronze/gempa_rss"
 
 # Path fallback lokal (relatif dari root project, diakses dari folder lakehouse/)
 LOCAL_API_PATH = "../dashboard/data/live_api.json"

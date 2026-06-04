@@ -28,12 +28,14 @@
     <button class="tab-btn" data-tab="peta2d">Peta 2D</button>
     <button class="tab-btn" data-tab="peta3d">Peta 3D</button>
     <button class="tab-btn" data-tab="berita">Berita</button>
+    <button class="tab-btn" data-tab="history">History</button>
   </nav>
 
   <div class="header-right">
     <span class="wib-time" id="wib-time">--:--:-- WIB</span>
     <span id="wib-date" style="display:none"></span>
     <span id="last-update" class="last-update">Sync: --</span>
+    <span id="countdown" class="last-update" style="color:var(--orange);margin-left:4px"></span>
     <button class="refresh-btn" id="manual-refresh" aria-label="Refresh data sekarang">
       <i data-lucide="refresh-cw" size="15"></i>
     </button>
@@ -205,6 +207,30 @@
         <div style="margin-top:6px;font-size:0.58rem;color:rgba(255,255,255,0.3);text-align:center;font-weight:600;letter-spacing:.05em">Linear Regression · Spark MLlib · Batch HDFS</div>
       </div>
 
+      <!-- Skor Risiko Wilayah -->
+      <div class="hcard">
+        <div class="hcard-title"><i data-lucide="shield-alert" size="12"></i> Skor Risiko Wilayah</div>
+        <div style="font-size: 0.55rem; color: rgba(255,255,255,0.4); margin-top:-8px; margin-bottom:8px; line-height: 1.2;">
+          Risk Score per wilayah = frekuensi × avg magnitude × (1 + % gempa dangkal)
+        </div>
+        <div class="wlist" id="risk-score-list" style="padding-right: 4px;">
+          <div style="color:rgba(255,255,255,0.35);font-size:0.75rem;padding:4px 0">Memuat...</div>
+        </div>
+        <button onclick="openModal('Skor Risiko Wilayah', renderRiskScoreHTML(window.latestSpark?.risk_score, true))" style="width:100%; margin-top:8px; background:rgba(255,255,255,0.1); border:none; color:#fff; padding:6px; border-radius:4px; font-size:0.65rem; cursor:pointer;"><i data-lucide="maximize" size="10"></i> Full Screen</button>
+      </div>
+
+      <!-- Korelasi Berita Gempa -->
+      <div class="hcard">
+        <div class="hcard-title"><i data-lucide="bell-ring" size="12"></i> Korelasi Berita Gempa</div>
+        <div style="font-size: 0.55rem; color: rgba(255,255,255,0.4); margin-top:-8px; margin-bottom:8px; line-height: 1.2;">
+          Join Silver RSS: gempa M>4.5 + berita kebencanaan dalam 2 jam sesudahnya
+        </div>
+        <div class="wlist" id="significant-alerts-list" style="padding-right: 4px;">
+          <div style="color:rgba(255,255,255,0.35);font-size:0.75rem;padding:4px 0">Memuat...</div>
+        </div>
+        <button onclick="openModal('Korelasi Berita Gempa', renderSignificantAlertsHTML(window.latestSpark?.significant_alerts, true))" style="width:100%; margin-top:8px; background:rgba(255,255,255,0.1); border:none; color:#fff; padding:6px; border-radius:4px; font-size:0.65rem; cursor:pointer;"><i data-lucide="maximize" size="10"></i> Full Screen</button>
+      </div>
+
     </div><!-- /hero-side-right -->
 
     <!-- Globe Earthquake Detail Modal -->
@@ -229,6 +255,28 @@
     <!-- gdetail card already handled above -->
 
   </section><!-- /hero-space -->
+
+  <!-- Full Screen Modal Component -->
+  <div id="fs-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; width:90%; max-width:800px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+      <div style="padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03);">
+        <h3 id="fs-modal-title" style="margin:0; font-size:1.1rem; color:var(--text); display:flex; align-items:center; gap:8px;">Title</h3>
+        <button onclick="closeModal()" style="background:rgba(255,255,255,0.1); border:none; color:var(--text); cursor:pointer; width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center;"><i data-lucide="x" size="16"></i></button>
+      </div>
+      <div id="fs-modal-body" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px;">
+      </div>
+    </div>
+  </div>
+  <script>
+    function openModal(title, htmlContent) {
+      document.getElementById('fs-modal-title').textContent = title;
+      document.getElementById('fs-modal-body').innerHTML = htmlContent;
+      document.getElementById('fs-modal').style.display = 'flex';
+    }
+    function closeModal() {
+      document.getElementById('fs-modal').style.display = 'none';
+    }
+  </script>
 
   <!-- ─── Log 20 Gempa Terkini — below hero ─── -->
   <div class="hero-bottom-log">
@@ -363,11 +411,26 @@
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- TAB 5: HISTORY                                           -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="tab-page" id="page-history">
+  <div class="panel">
+    <div class="ph">
+      <div class="pt"><i data-lucide="history" size="18"></i> History Update Data Lakehouse</div>
+    </div>
+    <div class="panel-body">
+      <div id="history-list" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 400px; max-height: 600px; overflow-y: auto;">
+        <div class="loading">Memuat history...</div>
+      </div>
+    </div>
+  </div>
+</div>
 </main>
 
-
 <footer>
-  GempaRadar · Kelompok 1 Big Data ETS · Data: USGS FDSN API + Google News RSS · Pipeline: Kafka → HDFS → Spark → Dashboard
+  GempaRadar · Kelompok 1 Big Data ETS · Data: USGS FDSN API + Google News RSS · Pipeline: Kafka → HDFS → Spark (Data Lakehouse) → Dashboard
 </footer>
 
 <!-- Libraries -->
@@ -375,6 +438,6 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
-<script src="/static/js/app.js?v=2.2"></script>
+<script src="/static/js/app.js?v=2.4"></script>
 </body>
 </html>

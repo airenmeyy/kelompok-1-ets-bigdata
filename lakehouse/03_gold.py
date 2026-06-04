@@ -111,88 +111,30 @@ except Exception as e:
 # ====================================================================
 # DEFINISI PATH
 # ====================================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LAKEHOUSE_DATA_DIR = os.path.join(BASE_DIR, "lakehouse_data")
+HDFS_LAKEHOUSE_BASE = "hdfs://hadoop-namenode:8020/data/lakehouse"
 
-def local_path(relative):
-    """Konversi path relatif lakehouse_data/ ke URI file:// Spark."""
-    abs_path = os.path.join(LAKEHOUSE_DATA_DIR, relative)
-    return f"file://{abs_path.replace(os.sep, '/')}"
+# INPUT: Silver Layer (data sudah bersih) dari HDFS
+SILVER_API_PATH = f"{HDFS_LAKEHOUSE_BASE}/silver/gempa_api"
+SILVER_RSS_PATH = f"{HDFS_LAKEHOUSE_BASE}/silver/gempa_rss"
 
-# INPUT: Silver Layer (data sudah bersih)
-SILVER_API_PATH = local_path("silver/gempa_api")
-SILVER_RSS_PATH = local_path("silver/gempa_rss")
+# OUTPUT: Gold Layer (hasil analisis ETS) ke HDFS
+GOLD_DISTRIBUSI_MAG_PATH   = f"{HDFS_LAKEHOUSE_BASE}/gold/ets_distribusi_magnitudo"
+GOLD_TOP_WILAYAH_PATH      = f"{HDFS_LAKEHOUSE_BASE}/gold/ets_top_wilayah"
+GOLD_DISTRIBUSI_DEPTH_PATH = f"{HDFS_LAKEHOUSE_BASE}/gold/ets_distribusi_kedalaman"
+GOLD_STATISTIK_PATH        = f"{HDFS_LAKEHOUSE_BASE}/gold/ets_statistik_ringkasan"
+GOLD_MLLIB_PATH            = f"{HDFS_LAKEHOUSE_BASE}/gold/ets_mllib_tren"
 
-# OUTPUT: Gold Layer (hasil analisis ETS)
-GOLD_DISTRIBUSI_MAG_PATH  = local_path("gold/ets_distribusi_magnitudo")
-GOLD_TOP_WILAYAH_PATH     = local_path("gold/ets_top_wilayah")
-GOLD_DISTRIBUSI_DEPTH_PATH = local_path("gold/ets_distribusi_kedalaman")
-GOLD_STATISTIK_PATH       = local_path("gold/ets_statistik_ringkasan")
-GOLD_MLLIB_PATH           = local_path("gold/ets_mllib_tren")
-
-# OUTPUT: Enhanced Gold Layer
-GOLD_MAG_DIST_PATH        = local_path("gold/gempa_mag_dist")
-GOLD_REGION_RANK_PATH     = local_path("gold/gempa_region_rank")
-GOLD_RISK_SCORE_PATH      = local_path("gold/gempa_risk_score")
-GOLD_SIGNIFICANT_ALERTS_PATH = local_path("gold/gempa_significant_alerts")
+# OUTPUT: Enhanced Gold Layer ke HDFS
+GOLD_RISK_SCORE_PATH       = f"{HDFS_LAKEHOUSE_BASE}/gold/gempa_risk_score"
+GOLD_SIGNIFICANT_ALERTS_PATH = f"{HDFS_LAKEHOUSE_BASE}/gold/gempa_significant_alerts"
 
 print(f"\n[*] Sumber Silver API : {SILVER_API_PATH}")
-print(f"[*] Output Gold ETS + Enhanced  : {local_path('gold/')}")
+print(f"[*] Output Gold ETS + Enhanced  : {HDFS_LAKEHOUSE_BASE}/gold/")
 
-# ====================================================================
-# HELPER: Bersihkan folder Gold lama agar versi Delta bersih
-# ====================================================================
-def clean_gold_path(delta_uri):
-    """Hapus folder Delta lama sebelum menulis ulang (reset version log)."""
-    clean = delta_uri.replace("file://", "")
-    if os.path.exists(clean):
-        try:
-            shutil.rmtree(clean)
-        except Exception:
-            pass    
-    
-# ====================================================================
-# DEFINISI PATH
-# ====================================================================
+# Path untuk output JSON lokal (dikonsumsi Dashboard web)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LAKEHOUSE_DATA_DIR = os.path.join(BASE_DIR, "lakehouse_data")
-
-def local_path(relative):
-    """Konversi path relatif lakehouse_data/ ke URI file:// Spark."""
-    abs_path = os.path.join(LAKEHOUSE_DATA_DIR, relative)
-    return f"file://{abs_path.replace(os.sep, '/')}"
-
-# INPUT: Silver Layer (data sudah bersih)
-SILVER_API_PATH = local_path("silver/gempa_api")
-SILVER_RSS_PATH = local_path("silver/gempa_rss")
-
-# OUTPUT: Gold Layer (hasil analisis ETS)
-GOLD_DISTRIBUSI_MAG_PATH  = local_path("gold/ets_distribusi_magnitudo")
-GOLD_TOP_WILAYAH_PATH     = local_path("gold/ets_top_wilayah")
-GOLD_DISTRIBUSI_DEPTH_PATH = local_path("gold/ets_distribusi_kedalaman")
-GOLD_STATISTIK_PATH       = local_path("gold/ets_statistik_ringkasan")
-GOLD_MLLIB_PATH           = local_path("gold/ets_mllib_tren")
-
-# OUTPUT: Enhanced Gold layer
-GOLD_MAG_DIST_PATH        = local_path("gold/gempa_mag_dist")
-GOLD_REGION_RANK_PATH     = local_path("gold/gempa_region_rank")
-GOLD_RISK_SCORE_PATH      = local_path("gold/gempa_risk_score")
-GOLD_SIGNIFICANT_ALERTS_PATH = local_path("gold/gempa_significant_alerts")
-
-print(f"\n[*] Sumber Silver API : {SILVER_API_PATH}")
-print(f"[*] Output Gold ETS + Enhanced  : {local_path('gold/')}")
-
-# ====================================================================
-# HELPER: Bersihkan folder Gold lama agar versi Delta bersih
-# ====================================================================
-def clean_gold_path(delta_uri):
-    """Hapus folder Delta lama sebelum menulis ulang (reset version log)."""
-    clean = delta_uri.replace("file://", "")
-    if os.path.exists(clean):
-        try:
-            shutil.rmtree(clean)
-        except Exception:
-            pass
+LOCAL_PATH = os.path.abspath(os.path.join(LAKEHOUSE_DATA_DIR, "gold", "spark_results.json"))
 
 # ====================================================================
 # BACA DATA SILVER API (Delta)
@@ -276,7 +218,7 @@ try:
 
     # Simpan ke Gold Delta
     print("[*] Menyimpan Distribusi Magnitudo ke Gold Delta...")
-    clean_gold_path(GOLD_DISTRIBUSI_MAG_PATH)
+    
     gold_mag = df_mag \
         .withColumn("_gold_processed_at", current_timestamp()) \
         .withColumn("_layer", lit("gold")) \
@@ -328,7 +270,7 @@ try:
 
     # Simpan ke Gold Delta — juga simpan semua wilayah (bukan hanya top 10)
     print("[*] Menyimpan Top Wilayah ke Gold Delta...")
-    clean_gold_path(GOLD_TOP_WILAYAH_PATH)
+    
 
     # Simpan full aggregation untuk referensi, bukan hanya LIMIT 10
     df_wilayah_full = spark.sql("""
@@ -395,7 +337,7 @@ try:
 
     # Simpan ke Gold Delta
     print("[*] Menyimpan Distribusi Kedalaman ke Gold Delta...")
-    clean_gold_path(GOLD_DISTRIBUSI_DEPTH_PATH)
+    
     gold_depth = df_depth \
         .withColumn("_gold_processed_at", current_timestamp()) \
         .withColumn("_layer", lit("gold")) \
@@ -438,7 +380,7 @@ try:
 
     # Simpan statistik ringkasan ke Gold Delta
     print("\n[*] Menyimpan Statistik Ringkasan ke Gold Delta...")
-    clean_gold_path(GOLD_STATISTIK_PATH)
+    
     df_stats = spark.sql("""
         SELECT
             COUNT(*) AS total_gempa,
@@ -515,7 +457,7 @@ try:
 
         # Simpan hasil MLlib ke Gold Delta (sebagai tabel kecil 1 baris)
         print("[*] Menyimpan hasil MLlib ke Gold Delta...")
-        clean_gold_path(GOLD_MLLIB_PATH)
+        
         df_mllib = spark.createDataFrame([{
             "tren": tren,
             "koefisien_per_jam": round(koefisien, 6),
@@ -538,43 +480,7 @@ except Exception as e:
     traceback.print_exc()
 
 
-# ====================================================================
-# LANGKAH 6: SIMPAN spark_results.json UNTUK DASHBOARD
-# ====================================================================
-print("\n" + "="*50)
-print("  EXPORT: spark_results.json untuk Dashboard")
-print("="*50)
-
-try:
-    spark_results = {
-        "source":                "gold_delta_combined",
-        "total_gempa":           int(stats_row["total"]),
-        "avg_magnitude":         float(stats_row["avg_mag"]) if stats_row["avg_mag"] else 0,
-        "max_magnitude":         float(stats_row["max_mag"]) if stats_row["max_mag"] else 0,
-        "rata_rata_kedalaman":   avg_depth,
-        "distribusi_magnitudo":  mag_ordered,
-        "top_wilayah":           top_wilayah,
-        "distribusi_kedalaman":  depth_stats,
-        "wilayah_teraktif":      top_wilayah[0]["wilayah"] if top_wilayah else "N/A",
-        "mllib":                 mllib_results,
-        "last_updated":          datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-    }
-
-    # Tulis ke dashboard/data/spark_results.json (sama seperti spark_processing.py)
-    LOCAL_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "dashboard", "data", "spark_results.json"
-    )
-    with open(LOCAL_PATH, "w", encoding="utf-8") as f:
-        json.dump(spark_results, f, ensure_ascii=False, indent=2)
-
-    print(f"[+] Dashboard JSON tersimpan: {LOCAL_PATH}")
-
-except Exception as e:
-    print(f"[-] Gagal menyimpan spark_results.json: {e}")
-    import traceback
-    traceback.print_exc()
-
+# (Langkah 6 dipindahkan ke akhir file agar mencakup data Enhancement Anggota 4)
 
 # ====================================================================
 # VERIFIKASI AKHIR — Baca ulang semua Gold Delta
@@ -612,36 +518,6 @@ print("\n[*] Running Bagian II: Gold Layer Enhancement (New Metrics)...")
 # 1. Tabel: gold/gempa_risk_score
 # 2. Tabel: gold/gempa_significant_alerts
 
-# ====================================================================
-# 1. TABEL: gold/gempa_mag_dist (Reproduksi Distribusi Magnitudo)
-# ====================================================================
-print("\n" + "-"*50 + "\n[*] Memproses: gold/gempa_mag_dist\n" + "-"*50)
-df_mag_dist = df_api_enhanced.groupBy("mag_category") \
-    .count().orderBy("count", ascending=False)
-
-clean_gold_path(GOLD_MAG_DIST_PATH)
-df_mag_dist.withColumn("_gold_processed_at", current_timestamp()) \
-    .withColumn("_layer", lit("gold")) \
-    .write.format("delta").mode("overwrite").save(GOLD_MAG_DIST_PATH)
-df_mag_dist.show()
-
-
-# ====================================================================
-# 2. TABEL: gold/gempa_region_rank (Reproduksi Wilayah Paling Aktif)
-# ====================================================================
-print("\n" + "-"*50 + "\n[*] Memproses: gold/gempa_region_rank\n" + "-"*50)
-df_region_rank = df_api_enhanced.groupBy("wilayah").agg(
-    count("*").alias("jumlah_gempa"),
-    spark_round(avg("magnitude"), 2).alias("rata_mag"),
-    spark_round(avg("depth_km"), 1).alias("rata_depth_km")
-).orderBy("jumlah_gempa", ascending=False)
-
-clean_gold_path(GOLD_REGION_RANK_PATH)
-df_region_rank.withColumn("_gold_processed_at", current_timestamp()) \
-    .withColumn("_layer", lit("gold")) \
-    .write.format("delta").mode("overwrite").save(GOLD_REGION_RANK_PATH)
-df_region_rank.show(5)
-
 
 # ====================================================================
 # 3. TABEL: gold/gempa_risk_score (🆕 ENHANCED: Analisis Risiko Wilayah)
@@ -659,12 +535,13 @@ df_risk_score = df_api_enhanced.groupBy("wilayah").agg(
     spark_round(col("frekuensi") * col("avg_mag") * (1 + col("pct_dangkal")), 2)
 ).orderBy("risk_score", ascending=False)
 
-clean_gold_path(GOLD_RISK_SCORE_PATH)
+
 df_risk_score.withColumn("_gold_processed_at", current_timestamp()) \
     .withColumn("_layer", lit("gold")) \
     .write.format("delta").mode("overwrite").save(GOLD_RISK_SCORE_PATH)
 df_risk_score.show(10)
 
+risk_score_list = [row.asDict() for row in df_risk_score.limit(10).collect()]
 
 # ====================================================================
 # 4. TABEL: gold/gempa_significant_alerts (🆕 ENHANCED: Korelasi Berita)
@@ -693,7 +570,7 @@ df_alerts = df_api_sig.join(df_silver_rss, join_condition, "inner") \
         col("summary_clean")
     ).orderBy("waktu_gempa", ascending=False)
 
-clean_gold_path(GOLD_SIGNIFICANT_ALERTS_PATH)
+
 df_alerts.withColumn("_gold_processed_at", current_timestamp()) \
     .withColumn("_layer", lit("gold")) \
     .write.format("delta").mode("overwrite").save(GOLD_SIGNIFICANT_ALERTS_PATH)
@@ -702,6 +579,53 @@ if df_alerts.count() > 0:
     df_alerts.select("wilayah", "magnitude", "waktu_gempa", "judul_berita").show(5, truncate=False)
 else:
     print("[!] Tidak ada berita RSS yang cocok dalam jendela 2 jam setelah gempa signifikan saat ini.")
+
+alerts_list = []
+for row in df_alerts.limit(10).collect():
+    d = row.asDict()
+    # Format datetime untuk JSON serialization
+    if "waktu_gempa" in d and hasattr(d["waktu_gempa"], "isoformat"):
+        d["waktu_gempa"] = d["waktu_gempa"].isoformat()
+    if "waktu_berita" in d and hasattr(d["waktu_berita"], "isoformat"):
+        d["waktu_berita"] = d["waktu_berita"].isoformat()
+    alerts_list.append(d)
+
+# ====================================================================
+# LANGKAH 6: SIMPAN spark_results.json UNTUK DASHBOARD (GABUNGAN)
+# ====================================================================
+print("\n" + "="*50)
+print("  EXPORT: spark_results.json untuk Dashboard")
+print("="*50)
+
+try:
+    spark_results = {
+        "source":                "gold_delta_combined",
+        "total_gempa":           int(stats_row["total"]),
+        "avg_magnitude":         float(stats_row["avg_mag"]) if stats_row["avg_mag"] else 0,
+        "max_magnitude":         float(stats_row["max_mag"]) if stats_row["max_mag"] else 0,
+        "rata_rata_kedalaman":   avg_depth,
+        "distribusi_magnitudo":  mag_ordered,
+        "top_wilayah":           top_wilayah,
+        "distribusi_kedalaman":  depth_stats,
+        "wilayah_teraktif":      top_wilayah[0]["wilayah"] if top_wilayah else "N/A",
+        "mllib":                 mllib_results,
+        "risk_score":            risk_score_list,
+        "significant_alerts":    alerts_list,
+        "last_updated":          datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+    }
+
+    LOCAL_PATH = os.path.join(
+        BASE_DIR, "lakehouse_data", "gold", "spark_results.json"
+    )
+    with open(LOCAL_PATH, "w", encoding="utf-8") as f:
+        json.dump(spark_results, f, ensure_ascii=False, indent=2)
+
+    print(f"[+] Dashboard JSON tersimpan: {LOCAL_PATH}")
+
+except Exception as e:
+    print(f"[-] Gagal menyimpan spark_results.json: {e}")
+    import traceback
+    traceback.print_exc()
 
 # ====================================================================
 # [4] VERIFIKASI AKHIR & PIPELINE CLOSING

@@ -383,9 +383,10 @@ footer { padding: 24px; text-align: center; color: var(--text-muted); font-size:
   gap: 10px;
   padding: 14px 12px;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
-.hero-side::-webkit-scrollbar { display: none; }
+.hero-side::-webkit-scrollbar { width: 5px; }
+.hero-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
 .hero-side-left  { left: 0; }
 .hero-side-right { right: 0; }
 .hcard {
