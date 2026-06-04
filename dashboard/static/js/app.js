@@ -76,7 +76,7 @@ tickClock(); setInterval(tickClock, 1000);
 function timeAgo(isoStr) {
   if (!isoStr) return 'Baru saja';
   try {
-    const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+    const diff = Math.max(0, Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000));
     if (diff < 60) return diff + ' detik lalu';
     if (diff < 3600) return Math.floor(diff / 60) + ' menit lalu';
     if (diff < 86400) return Math.floor(diff / 3600) + ' jam lalu';
@@ -95,6 +95,17 @@ let map3dInitialized = false;
 let allGempa = [];
 let activeTab = 'terkini';
 let lastDataIds = new Set();
+let refreshTimer = null;
+let isFetching = false;
+const REFRESH_INTERVAL_MS = 30000;
+const manualRefreshBtn = document.getElementById('manual-refresh');
+
+manualRefreshBtn?.addEventListener('click', () => fetchAndRender({ manual: true }));
+
+function scheduleNextFetch() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => fetchAndRender(), REFRESH_INTERVAL_MS);
+}
 
 // Audio context for alert
 let audioCtx = null;
@@ -849,8 +860,57 @@ function updateDepth(dist) {
   document.getElementById('d-dlm').textContent = dist['Dalam (>300 km)'] ?? '—';
 }
 
+function normalizeDate(value) {
+  if (!value) return null;
+  const normalized = String(value).replace(' UTC', 'Z').replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatWibTime(value) {
+  const date = normalizeDate(value);
+  if (!date) return value || '—';
+  return date.toLocaleTimeString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }) + ' WIB';
+}
+
+function setStatusValue(id, value, state) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value;
+  el.classList.remove('status-ok', 'status-warn', 'status-stale');
+  if (state) el.classList.add(state);
+}
+
+function renderSystemStatus(payload, spark) {
+  const latest = (payload.gempa_all || payload.gempa_terbaru || [])[0];
+  const sourceMap = {
+    live_data: 'Live USGS',
+    spark_hdfs: 'Spark/HDFS',
+    placeholder: 'Cache Lokal',
+  };
+  const source = sourceMap[spark.source] || (spark.source ? String(spark.source) : 'Live USGS');
+  const sparkTime = spark.spark_last_updated || spark.last_updated;
+
+  setStatusValue('ds-source', source, spark.note === 'Belum ada data' ? 'status-warn' : 'status-ok');
+  setStatusValue('ds-latest', latest?.event_time ? timeAgo(latest.event_time) : 'Menunggu data');
+  setStatusValue('ds-refresh', formatWibTime(payload.server_time), 'status-ok');
+  setStatusValue('ds-spark', sparkTime ? formatWibTime(sparkTime) : 'Menunggu batch', sparkTime ? 'status-ok' : 'status-warn');
+
+  const lastUpEl = document.getElementById('last-update');
+  if (lastUpEl) lastUpEl.textContent = 'Sync: ' + formatWibTime(payload.server_time);
+}
+
 // ── Main Fetch ──
-async function fetchAndRender() {
+async function fetchAndRender(options = {}) {
+  if (isFetching) return;
+  isFetching = true;
+  if (options.manual && manualRefreshBtn) manualRefreshBtn.classList.add('loading');
   try {
     const res = await fetch('/api/data');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -871,6 +931,7 @@ async function fetchAndRender() {
     try { if (spark.distribusi_kedalaman) { renderDepthDoughnut(spark.distribusi_kedalaman); } } catch(e) { console.warn('renderDepthDoughnut error:', e); }
     try { if (spark.top_wilayah) renderWilayah(spark.top_wilayah); } catch(e) { console.warn('renderWilayah error:', e); }
     try { if (spark.mllib) updateMllib(spark.mllib); } catch(e) { console.warn('updateMllib error:', e); }
+    try { renderSystemStatus(data, spark); } catch(e) { console.warn('renderSystemStatus error:', e); }
 
     // Render Mapbox maps (non-critical — don't break connectivity status)
     try { if (mapGlobe) renderMapboxMarkers(mapGlobe, allGempa, 'globe-count'); } catch(e) { console.warn('Globe render error:', e); }
@@ -880,14 +941,13 @@ async function fetchAndRender() {
         renderMap3DSidebar(allGempa);
       }
     } catch(e) { console.warn('Map3D render error:', e); }
-
-    const lastUpEl = document.getElementById('last-update');
-    if (lastUpEl) lastUpEl.textContent = 'Sync: ' + new Date().toLocaleTimeString('id-ID');
   } catch(e) {
     console.error('Fetch error:', e);
     setConnectivity(false);
   } finally {
-    setTimeout(fetchAndRender, 30000);
+    isFetching = false;
+    if (manualRefreshBtn) manualRefreshBtn.classList.remove('loading');
+    scheduleNextFetch();
   }
 }
 

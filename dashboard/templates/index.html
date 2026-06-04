@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=2.0"/>
+  <link rel="stylesheet" href="/static/css/style.css?v=2.1"/>
 </head>
 <body>
 
@@ -33,7 +33,10 @@
   <div class="header-right">
     <span class="wib-time" id="wib-time">--:--:-- WIB</span>
     <span id="wib-date" style="display:none"></span>
-    <span id="last-update" style="font-size:0.6rem;color:var(--text-muted);display:none"></span>
+    <span id="last-update" class="last-update">Sync: --</span>
+    <button class="refresh-btn" id="manual-refresh" aria-label="Refresh data sekarang">
+      <i data-lucide="refresh-cw" size="15"></i>
+    </button>
     <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"><i data-lucide="moon" id="theme-icon" size="16"></i></button>
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
   </div>
@@ -87,6 +90,29 @@
           <div class="hstat hstat-full">
             <div class="hstat-label">Wilayah Teraktif</div>
             <div class="hstat-val" style="font-size:0.8rem;line-height:1.35" id="s-wilayah">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Data -->
+      <div class="hcard">
+        <div class="hcard-title"><i data-lucide="database" size="12"></i> Status Data</div>
+        <div class="data-health-grid">
+          <div class="data-health-row">
+            <span>Sumber</span>
+            <strong id="ds-source">&mdash;</strong>
+          </div>
+          <div class="data-health-row">
+            <span>Event Terbaru</span>
+            <strong id="ds-latest">&mdash;</strong>
+          </div>
+          <div class="data-health-row">
+            <span>Sync Server</span>
+            <strong id="ds-refresh">&mdash;</strong>
+          </div>
+          <div class="data-health-row">
+            <span>Spark Batch</span>
+            <strong id="ds-spark">&mdash;</strong>
           </div>
         </div>
       </div>
@@ -341,7 +367,7 @@
 
 
 <footer>
-  GempaRadar · Kelompok 1 Big Data UTS · Data: USGS FDSN API + Google News RSS · Pipeline: Kafka → HDFS → Spark → Dashboard
+  GempaRadar · Kelompok 1 Big Data ETS · Data: USGS FDSN API + Google News RSS · Pipeline: Kafka → HDFS → Spark → Dashboard
 </footer>
 
 <!-- Libraries -->
@@ -349,6 +375,6 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
-<script src="/static/js/app.js?v=2.0"></script>
+<script src="/static/js/app.js?v=2.1"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
 
 | NRP | Nama Lengkap | Peran |
 |-----|--------------|-------|
-| 5027231086 | Kharisma Fahrun Nisa` | Setup Docker (Hadoop & Kafka), buat topic, troubleshooting infrastruktur |
+| 5027231086 | Kharisma Fahrun Nisa | Setup Docker (Hadoop & Kafka), buat topic, troubleshooting infrastruktur |
 | 5027241079 | M. Hikari Reiziq Rakhmadinta | `dashboard/app.py` + `index.html` |
 | 5027221053 | Aras Rizky Ananta | `producer_api.py` — integrasi API eksternal USGS |
 | 5027241036 | Arya Bisma Putra Refman | `spark_processing.py` — 3 analisis wajib + Spark MLlib |
@@ -178,6 +178,14 @@ spark = SparkSession.builder \
 
 ---
 
+### 7. Update Dashboard — Status Data & Refresh Manual
+
+**Masalah:** Saat demo, pengguna perlu tahu apakah angka dashboard berasal dari live USGS, hasil Spark/HDFS, atau cache lokal. Refresh manual juga dibutuhkan tanpa membuat timer auto-refresh bertumpuk di browser.
+
+**Solusi:** Dashboard sekarang menampilkan kartu **Status Data** berisi sumber data, event terbaru, sync server, dan waktu Spark batch terakhir. Header juga memiliki tombol refresh manual yang tetap memakai satu scheduler auto-refresh 30 detik. Marker Mapbox yang memakai efek pulse juga diperbaiki agar tetap bisa diklik.
+
+---
+
 ## ⚙️ Persiapan & Setup
 
 ### Prasyarat
@@ -306,6 +314,12 @@ python dashboard/app.py
 
 Dashboard tersedia di **http://localhost:5000**. Flask menjalankan background thread yang me-refresh data langsung dari USGS setiap 5 menit sebagai lapisan pelengkap pipeline Kafka.
 
+Fitur dashboard terbaru:
+- Kartu **Status Data** untuk melihat sumber data, event terbaru, sync server, dan Spark batch terakhir
+- Tombol refresh manual di header tanpa menambah timer auto-refresh baru
+- Auto-refresh frontend setiap 30 detik dan background USGS/RSS refresh setiap 5 menit
+- Marker Mapbox globe/3D tetap interaktif walaupun sedang memakai efek pulse
+
 ---
 
 ## 📸 Screenshot Dashboard
@@ -382,6 +396,7 @@ curl http://localhost:5000/api/data
 | Tab "Berpotensi Tsunami" menampilkan 0 pin di peta | Buat fungsi terpusat `isTsunami()` yang konsisten di seluruh kode frontend |
 | Spark harus dijalankan manual setiap kali | Buat `spark_runner.py` — otomatis jalankan Spark setiap 10 menit |
 | `spark_results.json` placeholder menyebabkan dashboard menampilkan nol sebelum Spark dijalankan | Fallback logic di `app.py`: hitung statistik dari `live_api.json` jika `source == "placeholder"` |
+| Pengguna tidak tahu sumber data dashboard saat demo | Tambah kartu **Status Data** dan tombol refresh manual di header dashboard |
 
 ---
 
