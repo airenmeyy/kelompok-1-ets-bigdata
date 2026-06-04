@@ -23,6 +23,35 @@ from datetime import datetime, timezone
 # ====================================================================
 # AUTO-REDIRECT KE DOCKER CONTAINER (pola sama dengan 01_bronze.py)
 # ====================================================================
+if os.name == 'nt' and not os.environ.get('HADOOP_HOME'):
+    import subprocess
+    print("\n" + "="*60)
+    print("  GOLD LAYER - GEMPARADAR DATA LAKEHOUSE")
+    print("="*60)
+    print("[*] Mendeteksi Windows Host tanpa variabel lingkungan HADOOP_HOME.")
+    print("[*] Mengalihkan eksekusi Spark secara otomatis ke dalam container Docker 'spark-master'...")
+    
+    # Path script di dalam container (karena repo di-mount ke /app)
+    container_script = "/app/lakehouse/03_gold.py"
+    
+    cmd = [
+        "docker", "exec", "-u", "root", "spark-master",
+        "/opt/spark/bin/spark-submit",
+        "--packages", "io.delta:delta-spark_2.12:3.1.0",
+        "--conf", "spark.jars.ivy=/tmp/.ivy2",
+        "--conf", "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension",
+        "--conf", "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        container_script
+    ]
+    
+    try:
+        # Jalankan di dalam container dan teruskan return code-nya
+        result = subprocess.run(cmd)
+        sys.exit(result.returncode)
+    except Exception as e:
+        print(f"[-] Gagal mengalihkan eksekusi ke container Docker: {e}")
+        print("[!] Pastikan Docker Desktop aktif dan container 'spark-master' sedang berjalan.")
+        sys.exit(1)
 try:
     # pyrefly: ignore [missing-import]
     from pyspark.sql import SparkSession
